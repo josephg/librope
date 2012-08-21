@@ -252,7 +252,7 @@ void test_all() {
 int main(int argc, const char * argv[]) {
   printf("Running tests...\n");
   test_all();
-  printf("Done!");
+  printf("Done!\n");
   return 0;
 }
 

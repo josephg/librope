@@ -1,0 +1,5 @@
+*.o
+librope.a
+test
+*.swp
+.DS_Store

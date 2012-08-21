@@ -6,8 +6,32 @@
 	objectVersion = 46;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
+		FD5D7C4015E1DCA100F847DF /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3F15E1DCA100F847DF /* tests.c */; };
+		FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
+		FD5D7C5015E24D7100F847DF /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FD5D7C3A15E1DCA100F847DF /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		FD5D7C2515E1DBAD00F847DF /* liblibrope.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibrope.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD5D7C3215E1DC4A00F847DF /* rope.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rope.c; sourceTree = "<group>"; };
+		FD5D7C3515E1DC5300F847DF /* rope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rope.h; sourceTree = "<group>"; };
+		FD5D7C3C15E1DCA100F847DF /* tests */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tests; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD5D7C3F15E1DCA100F847DF /* tests.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = tests.c; path = tests/tests.c; sourceTree = "<group>"; };
+		FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -18,12 +42,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FD5D7C3915E1DCA100F847DF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD5D7C5015E24D7100F847DF /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		FD5D7C1A15E1DBAD00F847DF = {
 			isa = PBXGroup;
 			children = (
+				FD5D7C3215E1DC4A00F847DF /* rope.c */,
+				FD5D7C3515E1DC5300F847DF /* rope.h */,
+				FD5D7C3F15E1DCA100F847DF /* tests.c */,
+				FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */,
 				FD5D7C2615E1DBAD00F847DF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -32,6 +68,7 @@
 			isa = PBXGroup;
 			children = (
 				FD5D7C2515E1DBAD00F847DF /* liblibrope.a */,
+				FD5D7C3C15E1DCA100F847DF /* tests */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,6 +103,23 @@
 			productReference = FD5D7C2515E1DBAD00F847DF /* liblibrope.a */;
 			productType = "com.apple.product-type.library.static";
 		};
+		FD5D7C3B15E1DCA100F847DF /* tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FD5D7C4315E1DCA100F847DF /* Build configuration list for PBXNativeTarget "tests" */;
+			buildPhases = (
+				FD5D7C3815E1DCA100F847DF /* Sources */,
+				FD5D7C3915E1DCA100F847DF /* Frameworks */,
+				FD5D7C3A15E1DCA100F847DF /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = tests;
+			productName = tests;
+			productReference = FD5D7C3C15E1DCA100F847DF /* tests */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -88,6 +142,7 @@
 			projectRoot = "";
 			targets = (
 				FD5D7C2415E1DBAD00F847DF /* librope */,
+				FD5D7C3B15E1DCA100F847DF /* tests */,
 			);
 		};
 /* End PBXProject section */
@@ -97,6 +152,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD5D7C3815E1DCA100F847DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */,
+				FD5D7C4015E1DCA100F847DF /* tests.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +231,20 @@
 			};
 			name = Release;
 		};
+		FD5D7C4415E1DCA100F847DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		FD5D7C4515E1DCA100F847DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -185,6 +264,16 @@
 				FD5D7C2B15E1DBAD00F847DF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FD5D7C4315E1DCA100F847DF /* Build configuration list for PBXNativeTarget "tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD5D7C4415E1DCA100F847DF /* Debug */,
+				FD5D7C4515E1DCA100F847DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

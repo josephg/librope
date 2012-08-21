@@ -8,9 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
-		FD5D7C4015E1DCA100F847DF /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3F15E1DCA100F847DF /* tests.c */; };
 		FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
 		FD5D7C5015E24D7100F847DF /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */; };
+		FD5D7C5715E34D7200F847DF /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C5615E34D7200F847DF /* tests.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -30,8 +30,8 @@
 		FD5D7C3215E1DC4A00F847DF /* rope.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rope.c; sourceTree = "<group>"; };
 		FD5D7C3515E1DC5300F847DF /* rope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rope.h; sourceTree = "<group>"; };
 		FD5D7C3C15E1DCA100F847DF /* tests */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tests; sourceTree = BUILT_PRODUCTS_DIR; };
-		FD5D7C3F15E1DCA100F847DF /* tests.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = tests.c; path = tests/tests.c; sourceTree = "<group>"; };
 		FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		FD5D7C5615E34D7200F847DF /* tests.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = tests.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,9 +56,9 @@
 		FD5D7C1A15E1DBAD00F847DF = {
 			isa = PBXGroup;
 			children = (
+				FD5D7C5615E34D7200F847DF /* tests.c */,
 				FD5D7C3215E1DC4A00F847DF /* rope.c */,
 				FD5D7C3515E1DC5300F847DF /* rope.h */,
-				FD5D7C3F15E1DCA100F847DF /* tests.c */,
 				FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */,
 				FD5D7C2615E1DBAD00F847DF /* Products */,
 			);
@@ -153,6 +153,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */,
+				FD5D7C5715E34D7200F847DF /* tests.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,7 +162,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */,
-				FD5D7C4015E1DCA100F847DF /* tests.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

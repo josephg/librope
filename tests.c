@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "rope.h"
 
@@ -11,10 +12,9 @@ static float rand_float() {
   return (float)random() / INT32_MAX;
 }
 
-static char *random_unicode_string() {
-  size_t s = 10; // Approximate size. Might use fewer bytes than this.
-  char *buffer = calloc(1, s);
-  char *pos = buffer;
+// s is an approximate size. Might use fewer bytes than that.
+static void random_unicode_string(uint8_t *buffer, size_t s) {
+  uint8_t *pos = buffer;
   
   while(buffer - pos > 6) {
     uint8_t byte;
@@ -41,18 +41,16 @@ static char *random_unicode_string() {
       *pos++ = (random() % 0x3f) | 0x80;
     }
   }
-  
-  return buffer;
 }
 
 static const char CHARS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 "0123456789!@#$%^&*()[]{}<>?,./";
-static uint8_t *random_ascii_string(size_t len) {
-  uint8_t *buffer = calloc(1, len + 1);
-  for (int i = 0; i < len; i++) {
+static void random_ascii_string(uint8_t *buffer, size_t len) {
+  assert(len);
+  for (int i = 0; i < len - 1; i++) {
     buffer[i] = CHARS[random() % (sizeof(CHARS) - 1)];
   }
-  return buffer;
+  buffer[len - 1] = '\0';
 }
 
 size_t utf8_strlen(uint8_t *data) {
@@ -162,7 +160,8 @@ static void test_delete_past_end_of_string() {
 
 static void test_really_long_ascii_string() {
   size_t len = 1000000;
-  uint8_t *str = random_ascii_string(len);
+  uint8_t *str = malloc(len + 1);
+  random_ascii_string(str, len + 1);
   
   rope *r = rope_new_with_utf8((uint8_t *)str);
   test(rope_char_count(r) == len);
@@ -195,6 +194,9 @@ static void test_random_edits() {
   const size_t bufsize = 100000000;
   char *buffer = malloc(bufsize);
   
+  const size_t max_stringsize = 1000;
+  uint8_t strbuffer[max_stringsize];
+  
   for (int i = 0; i < 10000; i++) {
     // First, some sanity checks.
     CFStringGetCString(str, buffer, bufsize, kCFStringEncodingUTF8);
@@ -205,18 +207,17 @@ static void test_random_edits() {
     
     if (len == 0 || rand_float() < 0.5f) {
       // Insert.
-      uint8_t *text = random_ascii_string(11);
-
+      //uint8_t *text = random_ascii_string(11);
+      random_unicode_string(strbuffer, random() % max_stringsize);
       size_t pos = random() % (len + 1);
       
       //printf("inserting %s at %zd\n", text, pos);
-      rope_insert(r, pos, text);
+      rope_insert(r, pos, strbuffer);
       
-      CFStringRef ins = CFStringCreateWithCString(NULL, (char *)text, kCFStringEncodingUTF8);
+      CFStringRef ins = CFStringCreateWithCString(NULL, (char *)strbuffer, kCFStringEncodingUTF8);
       CFStringInsert(str, pos, ins);
       
       CFRelease(ins);
-      free(text);
     } else {
       // Delete
       size_t pos = random() % len;
@@ -249,10 +250,52 @@ void test_all() {
   test_random_edits();
 }
 
+void benchmark() {
+  long iterations = 1000;
+  struct timeval start, end;
+  
+  rope *r = rope_new();
+  uint8_t *strings[100];
+  for (int i = 0; i < 100; i++) {
+    size_t len = i * i + 1;
+    strings[i] = calloc(1, len + 1);
+    random_ascii_string(strings[i], len);
+  }
+  
+  gettimeofday(&start, NULL);
+  
+  for (long i = 0; i < iterations; i++) {
+    if (rand_float() < 0.95f) {
+      // insert. (Inserts are way more common in practice than deletes.)
+      uint8_t *str = strings[random() % 100];
+      rope_insert(r, random() % (r->num_chars + 1), str);
+    } else {
+      size_t pos = random() % r->num_chars;
+      size_t length = MIN(r->num_chars - pos, 1 + random() % 1000);
+      rope_del(r, pos, length);
+    }
+  }
+  
+  gettimeofday(&end, NULL);
+  
+  for (int i = 0; i < 100; i++) {
+    free(strings[i]);
+  }
+  double elapsedTime = end.tv_sec - start.tv_sec;
+  elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
+  printf("did %ld iterations in %f ms: %e iter/sec\n",
+         iterations, elapsedTime * 1000, iterations / elapsedTime);
+  printf("final string length: %zi", r->num_chars);
+  rope_free(r);
+}
+
+
 int main(int argc, const char * argv[]) {
   printf("Running tests...\n");
   test_all();
   printf("Done!\n");
+  
+  benchmark();
   return 0;
 }
 

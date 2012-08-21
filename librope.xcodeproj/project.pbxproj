@@ -10,7 +10,7 @@
 		FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
 		FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
 		FD5D7C5015E24D7100F847DF /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD5D7C4F15E24D7100F847DF /* CoreFoundation.framework */; };
-		FD5D7C5715E34D7200F847DF /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C5615E34D7200F847DF /* tests.c */; };
+		FD5D7C5815E357AD00F847DF /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C5615E34D7200F847DF /* tests.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -153,7 +153,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */,
-				FD5D7C5715E34D7200F847DF /* tests.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -162,6 +161,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */,
+				FD5D7C5815E357AD00F847DF /* tests.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

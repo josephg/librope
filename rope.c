@@ -47,9 +47,12 @@ rope *rope_new_with_utf8(const uint8_t *str) {
 void rope_free(rope *r) {
   assert(r);
   rope_node *next;
-  for (rope_node *n = r->heads[0].node; n != NULL; n = next) {
-    next = n->nexts[0].node;
-    free(n);
+  
+  if (r->height > 0) {
+    for (rope_node *n = r->heads[0].node; n != NULL; n = next) {
+      next = n->nexts[0].node;
+      free(n);
+    }
   }
   
   free(r->heads);
@@ -101,7 +104,7 @@ size_t rope_byte_count(rope *r) {
 static uint8_t random_height() {
   uint8_t height = 1;
   
-  while(height <= UINT8_MAX && random() % 1) {
+  while(height <= UINT8_MAX && random() % 2) {
     height++;
   }
   
@@ -137,9 +140,17 @@ static size_t codepoint_size(uint8_t byte) {
 }
 
 // This little function counts how many bytes the some characters take up.
-static size_t count_bytes_in_chars(uint8_t *str, size_t num_chars) {
-  uint8_t *p = str;
+static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
+  const uint8_t *p = str;
   for (int i = 0; i < num_chars; i++) {
+    p += codepoint_size(*p);
+  }
+  return p - str;
+}
+
+static size_t utf8_strlen(const uint8_t *str) {
+  const uint8_t *p = str;
+  while (*p) {
     p += codepoint_size(*p);
   }
   return p - str;
@@ -226,6 +237,7 @@ static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node 
     }
     nodes[height] = e;
   }
+  assert(offset <= ROPE_NODE_STR_SIZE);
 
   *offset_out = offset;
   return e;
@@ -253,6 +265,7 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   // Figure out how much that is in bytes.
   size_t offset_bytes = 0;
   if (e && offset) {
+    assert(offset <= e->num_bytes);
     offset_bytes = count_bytes_in_chars(e->str, offset);
   }
   
@@ -268,6 +281,20 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     
     // Then copy in the string bytes
     memcpy(&e->str[offset_bytes], str, num_inserted_bytes);
+    e->num_bytes += num_inserted_bytes;
+    
+    r->num_bytes += num_inserted_bytes;
+    size_t num_inserted_chars = utf8_strlen(str);
+    r->num_chars += num_inserted_chars;
+    
+    // .... aaaand update all the skip lists.
+    for (int i = 0; i < r->height; i++) {
+      if (nodes[i]) {
+        nodes[i]->nexts[i].skip_size += num_inserted_chars;
+      } else {
+        r->heads[i].skip_size += num_inserted_chars;
+      }
+    }
   } else {
     // There isn't room. We'll need to add at least one new node to the rope.
     

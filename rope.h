@@ -13,7 +13,7 @@
 #include <stddef.h>
 
 // Must be <= UINT16_MAX. Benchmark to find the right value.
-#define ROPE_NODE_STR_SIZE 5
+#define ROPE_NODE_STR_SIZE 10
 
 struct rope_node_t;
 

@@ -251,13 +251,13 @@ void test_all() {
 }
 
 void benchmark() {
-  long iterations = 1000;
+  long iterations = 1000000;
   struct timeval start, end;
   
   rope *r = rope_new();
   uint8_t *strings[100];
   for (int i = 0; i < 100; i++) {
-    size_t len = i * i + 1;
+    size_t len = 1 + random() % 2;//i * i + 1;
     strings[i] = calloc(1, len + 1);
     random_ascii_string(strings[i], len);
   }
@@ -265,13 +265,13 @@ void benchmark() {
   gettimeofday(&start, NULL);
   
   for (long i = 0; i < iterations; i++) {
-    if (rand_float() < 0.95f) {
+    if (r->num_chars == 0 || rand_float() < 0.95f) {
       // insert. (Inserts are way more common in practice than deletes.)
       uint8_t *str = strings[random() % 100];
       rope_insert(r, random() % (r->num_chars + 1), str);
     } else {
       size_t pos = random() % r->num_chars;
-      size_t length = MIN(r->num_chars - pos, 1 + random() % 1000);
+      size_t length = MIN(r->num_chars - pos, 1 + random() % 10);
       rope_del(r, pos, length);
     }
   }

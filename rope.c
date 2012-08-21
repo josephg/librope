@@ -156,6 +156,46 @@ static size_t utf8_strlen(const uint8_t *str) {
   return p - str;
 }
 
+// Internal function for navigating to a particular character offset in the rope.
+// The function returns the list of nodes which point past the position, as well as
+// offsets of how far into their character lists the specified characters are.
+static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node *nodes[], size_t *tree_offsets) {
+  rope_node *e = NULL;
+  
+  uint8_t height = r->height;
+  // Offset stores how characters we still need to skip in the current node.
+  size_t offset = pos;
+  while (height--) {
+    size_t skip;
+    while (offset > (skip = (e ? e->nexts : r->heads)[height].skip_size)) {
+      // Go right.
+      offset -= skip;
+      e = (e ? e->nexts : r->heads)[height].node;
+    }
+    
+    // Go down.
+    // Record the distance from the start of the current node to the inserted text.
+    if (tree_offsets) {
+      tree_offsets[height] = offset;
+    }
+    nodes[height] = e;
+  }
+  assert(offset <= ROPE_NODE_STR_SIZE);
+  
+  *offset_out = offset;
+  return e;
+}
+
+static void update_offset_list(rope *r, rope_node *nodes[], size_t amt) {
+  for (int i = 0; i < r->height; i++) {
+    if (nodes[i]) {
+      nodes[i]->nexts[i].skip_size += amt;
+    } else {
+      r->heads[i].skip_size += amt;
+    }
+  }
+}
+
 // Internal method of rope_insert.
 static void insert_at(rope *r, size_t pos, const uint8_t *str,
     size_t num_bytes, size_t num_chars, rope_node *nodes[], size_t tree_offsets[]) {
@@ -213,36 +253,6 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
   r->num_bytes += num_bytes;
 }
 
-// Internal function for navigating to a particular character offset in the rope.
-// The function returns the list of nodes which point past the position, as well as
-// offsets of how far into their character lists the specified characters are.
-static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node *nodes[], size_t *tree_offsets) {
-  rope_node *e = NULL;
-  
-  uint8_t height = r->height;
-  // Offset stores how characters we still need to skip in the current node.
-  size_t offset = pos;
-  while (height--) {
-    size_t skip;
-    while (offset > (skip = (e ? e->nexts : r->heads)[height].skip_size)) {
-      // Go right.
-      offset -= skip;
-      e = (e ? e->nexts : r->heads)[height].node;
-    }
-    
-    // Go down.
-    // Record the distance from the start of the current node to the inserted text.
-    if (tree_offsets) {
-      tree_offsets[height] = offset;
-    }
-    nodes[height] = e;
-  }
-  assert(offset <= ROPE_NODE_STR_SIZE);
-
-  *offset_out = offset;
-  return e;
-}
-
 // Insert the given utf8 string into the rope at the specified position.
 void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   assert(r);
@@ -287,14 +297,8 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     size_t num_inserted_chars = utf8_strlen(str);
     r->num_chars += num_inserted_chars;
     
-    // .... aaaand update all the skip lists.
-    for (int i = 0; i < r->height; i++) {
-      if (nodes[i]) {
-        nodes[i]->nexts[i].skip_size += num_inserted_chars;
-      } else {
-        r->heads[i].skip_size += num_inserted_chars;
-      }
-    }
+    // .... aaaand update all the offset amounts.
+    update_offset_list(r, nodes, num_inserted_chars);
   } else {
     // There isn't room. We'll need to add at least one new node to the rope.
     
@@ -307,9 +311,7 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
       if (num_end_bytes) {
         // Count out characters.
         num_end_chars = e->nexts[0].skip_size - offset;
-        for (int i = 0; i < r->height; i++) {
-          nodes[i]->nexts[i].skip_size -= num_end_bytes;
-        }
+        update_offset_list(r, nodes, -num_end_chars);
         
         r->num_chars -= num_end_chars;
         r->num_bytes -= num_end_bytes;

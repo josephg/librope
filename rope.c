@@ -125,7 +125,7 @@ static rope_node *alloc_node(uint8_t height) {
   return node;
 }
 
-static size_t codepoint_size(uint8_t byte) {
+static inline size_t codepoint_size(uint8_t byte) {
   if (byte <= 0x7f) { return 1; }
   else if (byte <= 0xdf) { return 2; }
   else if (byte <= 0xef) { return 3; }
@@ -134,7 +134,7 @@ static size_t codepoint_size(uint8_t byte) {
   else if (byte <= 0xfd) { return 6; }
   else {
     // The codepoint is invalid... what do?
-    assert(0);
+    //assert(0);
     return 1;
   }
 }
@@ -162,24 +162,53 @@ static size_t utf8_strlen(const uint8_t *str) {
 static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node *nodes[], size_t *tree_offsets) {
   rope_node *e = NULL;
   
-  uint8_t height = r->height;
+  int height = r->height;
   // Offset stores how characters we still need to skip in the current node.
   size_t offset = pos;
+  size_t skip;
+
   while (height--) {
-    size_t skip;
-    while (offset > (skip = (e ? e->nexts : r->heads)[height].skip_size)) {
+    if (offset > (skip = r->heads[height].skip_size)) {
+
+      offset -= skip;
+      e = r->heads[height].node;
+
+      break;
+    } else {
+      if (tree_offsets) {
+        tree_offsets[height] = offset;
+      }
+      nodes[height] = NULL;
+    }
+  }
+  
+  // The list is empty or offset is 0.
+  if (e == NULL) {
+    *offset_out = offset;
+    return e;
+  }
+
+  while (1) {
+    skip = e->nexts[height].skip_size;
+    if (offset > skip) {
       // Go right.
       offset -= skip;
-      e = (e ? e->nexts : r->heads)[height].node;
+      e = e->nexts[height].node;
+    } else {
+      // Go down.
+      if (tree_offsets) {
+        tree_offsets[height] = offset;
+      }
+      nodes[height] = e;
+
+      if (height == 0) {
+        break;
+      } else {
+        height--;
+      }
     }
-    
-    // Go down.
-    // Record the distance from the start of the current node to the inserted text.
-    if (tree_offsets) {
-      tree_offsets[height] = offset;
-    }
-    nodes[height] = e;
   }
+  
   assert(offset <= ROPE_NODE_STR_SIZE);
   
   *offset_out = offset;
@@ -377,8 +406,8 @@ void rope_del(rope *r, size_t pos, size_t length) {
     int i;
     if (removed < num_chars) {
       // Just trim this node down to size.
-      uint8_t leading_bytes = count_bytes_in_chars(e->str, offset);
-      uint8_t removed_bytes = count_bytes_in_chars(e->str + leading_bytes, removed);
+      size_t leading_bytes = count_bytes_in_chars(e->str, offset);
+      size_t removed_bytes = count_bytes_in_chars(e->str + leading_bytes, removed);
       size_t trailing_bytes = e->num_bytes - leading_bytes - removed_bytes;
       
       if (trailing_bytes) {
@@ -418,3 +447,21 @@ void rope_del(rope *r, size_t pos, size_t length) {
   }
 }
 
+void _rope_check(rope *r) {
+  if (r->height == 0) {
+    assert(r->num_bytes == 0);
+    assert(r->num_chars == 0);
+    return;
+  }
+  
+  size_t num_bytes = 0;
+  size_t num_chars = 0;
+
+  for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
+    num_bytes += n->num_bytes;
+    num_chars += n->nexts[0].skip_size;
+  }
+  
+  assert(r->num_bytes == num_bytes);
+  assert(r->num_chars == num_chars);
+}

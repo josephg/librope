@@ -13,7 +13,7 @@
 #include <stddef.h>
 
 // Must be <= UINT16_MAX. Benchmark to find the right value.
-#define ROPE_NODE_STR_SIZE 510
+#define ROPE_NODE_STR_SIZE 128
 
 struct rope_node_t;
 
@@ -68,5 +68,7 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
+
+void _rope_check(rope *r);
 
 #endif

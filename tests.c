@@ -73,6 +73,7 @@ void test(int cond) {
 }
 
 void check(rope *rope, char *expected) {
+  _rope_check(rope);
   test(rope_byte_count(rope) == strlen(expected));
   uint8_t *cstr = rope_createcstr(rope, NULL);
   test(strcmp((char *)cstr, expected) == 0);
@@ -159,7 +160,7 @@ static void test_delete_past_end_of_string() {
 }
 
 static void test_really_long_ascii_string() {
-  size_t len = 1000000;
+  size_t len = 2000;
   uint8_t *str = malloc(len + 1);
   random_ascii_string(str, len + 1);
   
@@ -169,7 +170,10 @@ static void test_really_long_ascii_string() {
   
   // Delete everything but the first and last characters.
   rope_del(r, 1, len - 2);
+  assert(r->num_bytes == 2);
+  assert(r->num_chars == 2);
   char *contents = (char *)rope_createcstr(r, NULL);
+  _rope_check(r);
   test(contents[0] == str[0]);
   test(contents[1] == str[len - 1]);
   free(contents);
@@ -251,7 +255,7 @@ void test_all() {
 }
 
 void benchmark() {
-  long iterations = 1000000;
+  long iterations = 20000000;
   struct timeval start, end;
   
   rope *r = rope_new();
@@ -283,9 +287,9 @@ void benchmark() {
   }
   double elapsedTime = end.tv_sec - start.tv_sec;
   elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
-  printf("did %ld iterations in %f ms: %e iter/sec\n",
-         iterations, elapsedTime * 1000, iterations / elapsedTime);
-  printf("final string length: %zi", r->num_chars);
+  printf("did %ld iterations in %f ms: %f Miter/sec\n",
+         iterations, elapsedTime * 1000, iterations / elapsedTime / 1000000);
+  printf("final string length: %zi\n", r->num_chars);
   rope_free(r);
 }
 

@@ -63,6 +63,10 @@ uint8_t *rope_createcstr(rope *r, size_t *len) {
   uint8_t *bytes = malloc(numbytes + 1); // Room for a zero.
   bytes[numbytes] = '\0';
   
+  if (numbytes == 0) {
+    return bytes;
+  }
+  
   uint8_t *p = bytes;
   for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
     memcpy(p, n->str, n->num_bytes);
@@ -132,6 +136,15 @@ static size_t codepoint_size(uint8_t byte) {
   }
 }
 
+// This little function counts how many bytes the some characters take up.
+static size_t count_bytes_in_chars(uint8_t *str, size_t num_chars) {
+  uint8_t *p = str;
+  for (int i = 0; i < num_chars; i++) {
+    p += codepoint_size(*p);
+  }
+  return p - str;
+}
+
 // Internal method of rope_insert.
 static void insert_at(rope *r, size_t pos, const uint8_t *str,
     size_t num_bytes, size_t num_chars, rope_node *nodes[], size_t tree_offsets[]) {
@@ -189,22 +202,13 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
   r->num_bytes += num_bytes;
 }
 
-// Insert the given utf8 string into the rope at the specified position.
-void rope_insert(rope *r, size_t pos, const uint8_t *str) {
-  assert(r);
-  assert(str);
-  pos = MIN(pos, r->num_chars);
-  
-  // First we need to search for the node where we'll insert the string.
+// Internal function for navigating to a particular character offset in the rope.
+// The function returns the list of nodes which point past the position, as well as
+// offsets of how far into their character lists the specified characters are.
+static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node *nodes[], size_t *tree_offsets) {
   rope_node *e = NULL;
-
-  uint8_t height = r->height;
-  // There's a good chance we'll have to rewrite a bunch of next pointers and a bunch
-  // of offsets. This variable will store pointers to the elements which need to
-  // be changed.
-  rope_node *nodes[UINT8_MAX];
-  size_t tree_offsets[UINT8_MAX];
   
+  uint8_t height = r->height;
   // Offset stores how characters we still need to skip in the current node.
   size_t offset = pos;
   while (height--) {
@@ -217,20 +221,39 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     
     // Go down.
     // Record the distance from the start of the current node to the inserted text.
-    tree_offsets[height] = offset;
+    if (tree_offsets) {
+      tree_offsets[height] = offset;
+    }
     nodes[height] = e;
   }
+
+  *offset_out = offset;
+  return e;
+}
+
+// Insert the given utf8 string into the rope at the specified position.
+void rope_insert(rope *r, size_t pos, const uint8_t *str) {
+  assert(r);
+  assert(str);
+  pos = MIN(pos, r->num_chars);
+
+  // There's a good chance we'll have to rewrite a bunch of next pointers and a bunch
+  // of offsets. This variable will store pointers to the elements which need to
+  // be changed.
+  rope_node *nodes[UINT8_MAX];
+  size_t tree_offsets[UINT8_MAX];
+
+  // This is the number of characters to skip in the current node.
+  size_t offset;
+  
+  // First we need to search for the node where we'll insert the string.
+  rope_node *e = go_to_node(r, pos, &offset, nodes, tree_offsets);
   
   // offset contains how far (in characters) into the current element to skip.
   // Figure out how much that is in bytes.
   size_t offset_bytes = 0;
   if (e && offset) {
-    uint8_t *p = e->str;
-    
-    for (int i = 0; i < offset; i++) {
-      p += codepoint_size(*p);
-    }
-    offset_bytes = p - e->str;
+    offset_bytes = count_bytes_in_chars(e->str, offset);
   }
   
   // Maybe we can insert the characters into the current node?
@@ -297,7 +320,72 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
 
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.
-void rope_del(rope *r, size_t pos, size_t num) {
+void rope_del(rope *r, size_t pos, size_t length) {
+  assert(r);
+  pos = MIN(pos, r->num_chars);
+  length = MIN(length, r->num_chars - pos);
   
+  rope_node *nodes[UINT8_MAX];
+  
+  // the number of characters to skip in the current node.
+  size_t offset;
+  
+  // Search for the node where we'll insert the string.
+  rope_node *e = go_to_node(r, pos, &offset, nodes, NULL);
+  
+  r->num_chars -= length;
+  
+  while (length) {
+    if (e == NULL || offset == e->nexts[0].skip_size) {
+      // Skip this node.
+      e = (nodes[0] ? nodes[0]->nexts[0] : r->heads[0]).node;
+      offset = 0;
+    }
+    
+    size_t num_chars = e->nexts[0].skip_size;
+    size_t removed = MIN(length, num_chars - offset);
+    
+    int i;
+    if (removed < num_chars) {
+      // Just trim this node down to size.
+      uint8_t leading_bytes = count_bytes_in_chars(e->str, offset);
+      uint8_t removed_bytes = count_bytes_in_chars(e->str + leading_bytes, removed);
+      size_t trailing_bytes = e->num_bytes - leading_bytes - removed_bytes;
+      
+      if (trailing_bytes) {
+        memmove(e->str + leading_bytes, e->str + leading_bytes + removed_bytes, trailing_bytes);
+      }
+      e->num_bytes -= removed_bytes;
+      r->num_bytes -= removed_bytes;
+      
+      for (i = 0; i < e->height; i++) {
+        e->nexts[i].skip_size -= removed;
+      }
+    } else {
+      // Remove the node.
+      for (i = 0; i < e->height; i++) {
+        rope_next_node *next_node = (nodes[i] ? &nodes[i]->nexts[i] : &r->heads[i]);
+        next_node->node = e->nexts[i].node;
+        next_node->skip_size += e->nexts[i].skip_size - removed;
+      }
+      
+      r->num_bytes -= e->num_bytes;
+      // TODO: Recycle e.
+      rope_node *next = e->nexts[0].node;
+      free(e);
+      e = next;
+      offset = 0;
+    }
+    
+    for (; i < r->height; i++) {
+      if (nodes[i]) {
+        nodes[i]->nexts[i].skip_size -= removed;
+      } else {
+        r->heads[i].skip_size -= removed;
+      }
+    }
+    
+    length -= removed;
+  }
 }
 

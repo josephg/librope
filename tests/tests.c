@@ -7,6 +7,66 @@
 
 #include "rope.h"
 
+static float rand_float() {
+  return (float)random() / INT32_MAX;
+}
+
+static char *random_unicode_string() {
+  size_t s = 10; // Approximate size. Might use fewer bytes than this.
+  char *buffer = calloc(1, s);
+  char *pos = buffer;
+  
+  while(buffer - pos > 6) {
+    uint8_t byte;
+    do {
+      byte = random() % 0xff;
+    } while(byte == 0);
+    
+    int trailing_bytes;
+    if (byte <= 0x7f) { trailing_bytes = 0; }
+    else if (byte <= 0xdf) { trailing_bytes = 1; }
+    else if (byte <= 0xef) { trailing_bytes = 2; }
+    else if (byte <= 0xf7) { trailing_bytes = 3; }
+    else if (byte <= 0xfb) { trailing_bytes = 4; }
+    else if (byte <= 0xfd) { trailing_bytes = 5; }
+    else {
+      // 0xfd is the highest valid first byte in a utf8 string.
+      // I'll just map it back to an 'a'.
+      byte = 'a';
+      trailing_bytes = 0;
+    }
+    
+    *pos++ = byte;
+    for (int i = 0; i < trailing_bytes; i++) {
+      *pos++ = (random() % 0x3f) | 0x80;
+    }
+  }
+  
+  return buffer;
+}
+
+static const char CHARS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+"0123456789!@#$%^&*()[]{}<>?,./";
+static uint8_t *random_ascii_string(size_t len) {
+  uint8_t *buffer = calloc(1, len + 1);
+  for (int i = 0; i < len; i++) {
+    buffer[i] = CHARS[random() % (sizeof(CHARS) - 1)];
+  }
+  return buffer;
+}
+
+size_t utf8_strlen(uint8_t *data) {
+  size_t numchars = 0;
+  
+  while (*data) {
+    if ((*data++ & 0xC0) != 0x80) {
+      ++numchars;
+    }
+  }
+  
+  return numchars;
+}
+
 void test(int cond) {
   if (!cond) {
     fprintf(stderr, "Test failed\n");
@@ -101,92 +161,24 @@ static void test_delete_past_end_of_string() {
 }
 
 static void test_really_long_ascii_string() {
-  const size_t len = 100000;
-  char buf[len + 1] = {};
-  for (int i = 0; i < len; i++) {
-    // Fill the buffer with a random ascii string.
-    do {
-      buf[i] = random() % 128;
-    } while(buf[i] == 0);
-  }
+  size_t len = 1000000;
+  uint8_t *str = random_ascii_string(len);
   
-  rope *r = rope_new_with_utf8((uint8_t *)buf);
+  rope *r = rope_new_with_utf8((uint8_t *)str);
   test(rope_char_count(r) == len);
-  check(r, buf);
+  check(r, (char *)str);
   
   // Delete everything but the first and last characters.
   rope_del(r, 1, len - 2);
   char *contents = (char *)rope_createcstr(r, NULL);
-  test(contents[0] == buf[0]);
-  test(contents[1] == buf[len]);
+  test(contents[0] == str[0]);
+  test(contents[1] == str[len - 1]);
   free(contents);
   
   rope_free(r);
 }
 
 // TODO: Should add a test for really long unicode strings as well
-
-static float rand_float() {
-  return (float)random() / INT32_MAX;
-}
-
-
-static char *random_unicode_string() {
-  size_t s = 10; // Approximate size. Might use fewer bytes than this.
-  char *buffer = calloc(1, s);
-  char *pos = buffer;
-  
-  while(buffer - pos > 6) {
-    uint8_t byte;
-    do {
-      byte = random() % 0xff;
-    } while(byte == 0);
-    
-    int trailing_bytes;
-    if (byte <= 0x7f) { trailing_bytes = 0; }
-    else if (byte <= 0xdf) { trailing_bytes = 1; }
-    else if (byte <= 0xef) { trailing_bytes = 2; }
-    else if (byte <= 0xf7) { trailing_bytes = 3; }
-    else if (byte <= 0xfb) { trailing_bytes = 4; }
-    else if (byte <= 0xfd) { trailing_bytes = 5; }
-    else {
-      // 0xfd is the highest valid first byte in a utf8 string.
-      // I'll just map it back to an 'a'.
-      byte = 'a';
-      trailing_bytes = 0;
-    }
-    
-    *pos++ = byte;
-    for (int i = 0; i < trailing_bytes; i++) {
-      *pos++ = (random() % 0x3f) | 0x80;
-    }
-  }
-  
-  return buffer;
-}
-
-static const char CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    "\n0123456789!@#$%^&*()[]{}<>?,./";
-static uint8_t *random_ascii_string() {
-  size_t s = 10;
-  uint8_t *buffer = calloc(1, s);
-  for (int i = 0; i < s - 1; i++) {
-    buffer[i] = CHARS[random() % sizeof(CHARS)];
-  }
-  return buffer;
-}
-
-size_t utf8_strlen(uint8_t *data) {
-  size_t numchars = 0;
-  
-  while (*data) {
-    if ((*data & 0xC0) != 0x80) {
-      ++numchars;
-    }
-  }
-  
-  return numchars;
-}
 
 #define MIN(x,y) ((x) > (y) ? (y) : (x))
 
@@ -200,10 +192,10 @@ static void test_random_edits() {
   CFMutableStringRef str = CFStringCreateMutable(NULL, 0);
   rope *r = rope_new();
   
-  const size_t bufsize = 1000000;
+  const size_t bufsize = 100000000;
   char *buffer = malloc(bufsize);
   
-  for (int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 10000; i++) {
     // First, some sanity checks.
     CFStringGetCString(str, buffer, bufsize, kCFStringEncodingUTF8);
     check(r, buffer);
@@ -211,13 +203,13 @@ static void test_random_edits() {
     size_t len = utf8_strlen((uint8_t *)buffer);
     test(rope_char_count(r) == len);
     
-    if (rand_float() < 0.9f) {
+    if (len == 0 || rand_float() < 0.5f) {
       // Insert.
-      uint8_t *text = random_ascii_string();
+      uint8_t *text = random_ascii_string(11);
 
       size_t pos = random() % (len + 1);
       
-      printf("inserting %s at %zd\n", text, pos);
+      //printf("inserting %s at %zd\n", text, pos);
       rope_insert(r, pos, text);
       
       CFStringRef ins = CFStringCreateWithCString(NULL, (char *)text, kCFStringEncodingUTF8);
@@ -229,9 +221,10 @@ static void test_random_edits() {
       // Delete
       size_t pos = random() % len;
       
-      size_t dellen = MIN(len - pos, random() % 10);
+      size_t dellen = random() % 10;
+      dellen = MIN(len - pos, dellen);
       
-      printf("deleting %zd chars at %zd\n", dellen, pos);
+      //printf("deleting %zd chars at %zd\n", dellen, pos);
 
       //deletedText = str[pos...pos + length]
       //test.strictEqual deletedText, r.substring pos, length
@@ -241,6 +234,8 @@ static void test_random_edits() {
       CFStringDelete(str, CFRangeMake(pos, dellen));
     }
   }
+  
+  free(buffer);
 }
 #endif
 
@@ -248,10 +243,10 @@ void test_all() {
   test_empty_rope_has_no_content();
   test_new_string_has_content();
   test_insert_at_location();
-  //  test_delete_at_location();
-  //  test_delete_past_end_of_string();
-  //  test_really_long_ascii_string();
-  //  test_random_edits();
+  test_delete_at_location();
+  test_delete_past_end_of_string();
+  test_really_long_ascii_string();
+  test_random_edits();
 }
 
 int main(int argc, const char * argv[]) {

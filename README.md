@@ -19,7 +19,7 @@ rope *r = rope_new();
 // Put some content in it (at position 0)
 rope_insert(r, 0, "Hi there!");
 
-// Delete some characters
+// Delete 6 characters at position 2
 rope_delete(r, 2, 6);
 
 // Get the whole string back out of the rope

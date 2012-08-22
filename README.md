@@ -3,11 +3,11 @@ librope
 
 This is a little C library for heavyweight utf-8 strings (rope). Unlike regular C strings, ropes can do substring insertion and deletion in O(log n) time.
 
-librope is implemented using skip lists.
+librope is implemented using skip lists, which have the same time complexity as trees (which are used in classical ropes).
 
-This library is still pretty new. It probably won't build using visual studio yet (patches welcome btw) and there's probably about 1-2 bugs remaining in the code.
+librope is _fast_. It will happily perform ~1-5 million edit operations per second, depending on the size of your strings.
 
-Let me know if you find any issues!
+This library is still pretty new. It probably won't build using visual studio yet (pull requests welcome). Let me know if you find any issues!
 
 Usage
 -----

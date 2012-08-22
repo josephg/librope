@@ -245,6 +245,7 @@ static void test_random_edits() {
 #endif
 
 void test_all() {
+  printf("Running tests...\n");
   test_empty_rope_has_no_content();
   test_new_string_has_content();
   test_insert_at_location();
@@ -252,6 +253,7 @@ void test_all() {
   test_delete_past_end_of_string();
   test_really_long_ascii_string();
   test_random_edits();
+  printf("Done!\n");
 }
 
 void benchmark() {
@@ -263,21 +265,29 @@ void benchmark() {
   for (int i = 0; i < 100; i++) {
     size_t len = 1 + random() % 2;//i * i + 1;
     strings[i] = calloc(1, len + 1);
-    random_ascii_string(strings[i], len);
+    random_ascii_string(strings[i], len + 1);
+  }
+
+  // We should pick the same random sequence each benchmark run.
+  unsigned long *rvals = malloc(sizeof(long) * iterations);
+  for (int i = 0; i < iterations; i++) {
+    rvals[i] = random();
   }
   
   gettimeofday(&start, NULL);
   
   for (long i = 0; i < iterations; i++) {
-    if (r->num_chars == 0 || rand_float() < 0.95f) {
+    if (r->num_chars == 0 || i % 20 > 0) {
       // insert. (Inserts are way more common in practice than deletes.)
-      uint8_t *str = strings[random() % 100];
-      rope_insert(r, random() % (r->num_chars + 1), str);
+      uint8_t *str = strings[i % 100];
+      rope_insert(r, rvals[i] % (r->num_chars + 1), str);
     } else {
-      size_t pos = random() % r->num_chars;
-      size_t length = MIN(r->num_chars - pos, 1 + random() % 10);
+      size_t pos = rvals[i] % r->num_chars;
+      size_t length = MIN(r->num_chars - pos, 1 + (~rvals[i]) % 53);
       rope_del(r, pos, length);
     }
+
+    //printf("%s\n", rope_createcstr(r, NULL));
   }
   
   gettimeofday(&end, NULL);
@@ -289,17 +299,17 @@ void benchmark() {
   elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
   printf("did %ld iterations in %f ms: %f Miter/sec\n",
          iterations, elapsedTime * 1000, iterations / elapsedTime / 1000000);
-  printf("final string length: %zi\n", r->num_chars);
+  printf("final string length: %zi, height: %d\n", r->num_chars, r->height);
+  printf("ROPE_BIAS: %d  STR_SIZE: %d\n", ROPE_BIAS, ROPE_NODE_STR_SIZE);
+
   rope_free(r);
 }
 
 
 int main(int argc, const char * argv[]) {
-  printf("Running tests...\n");
   test_all();
-  printf("Done!\n");
   
-  benchmark();
+  //benchmark();
   return 0;
 }
 

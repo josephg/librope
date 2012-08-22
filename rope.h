@@ -12,8 +12,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Must be <= UINT16_MAX. Benchmark to find the right value.
+// These two magic values seem to be approximately optimal given the benchmark in
+// tests.c which does lots of small inserts.
+
+// Must be <= UINT16_MAX.
 #define ROPE_NODE_STR_SIZE 128
+// The likelyhood (%) a node will have height (n+1) instead of n
+#define ROPE_BIAS 25
 
 struct rope_node_t;
 

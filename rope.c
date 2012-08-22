@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <assert.h>
 #include "rope.h"
 
@@ -188,7 +189,7 @@ static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node 
     return e;
   }
 
-  while (1) {
+  while (true) {
     skip = e->nexts[height].skip_size;
     if (offset > skip) {
       // Go right.
@@ -310,6 +311,15 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   
   // Maybe we can insert the characters into the current node?
   size_t num_inserted_bytes = strlen((char *)str);
+
+  if (e == NULL && r->height) {
+    // Skip to the first element.
+    e = r->heads[0].node;
+    for (int i = 0; i < e->height; i++) {
+      nodes[i] = e;
+    }
+  }
+
   if (e && e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE) {
     // First move the current bytes later on in the string.
     if (offset_bytes < e->num_bytes) {

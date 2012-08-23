@@ -1,10 +1,4 @@
-//
-//  rope.c
-//  librope
-//
-//  Created by Joseph Gentle on 20/08/12.
-//  Copyright (c) 2012 Joseph Gentle. All rights reserved.
-//
+// Implementation for rope library.
 
 #include <stdlib.h>
 #include <string.h>
@@ -194,6 +188,7 @@ static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node 
     if (offset > skip) {
       // Go right.
       offset -= skip;
+      assert(e->num_bytes);
       e = e->nexts[height].node;
     } else {
       // Go down.
@@ -312,15 +307,34 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   // Maybe we can insert the characters into the current node?
   size_t num_inserted_bytes = strlen((char *)str);
 
-  if (e == NULL && r->height) {
-    // Skip to the first element.
-    e = r->heads[0].node;
-    for (int i = 0; i < e->height; i++) {
-      nodes[i] = e;
-    }
+  // Can we insert into the current node?
+  bool insert_here = e && e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
+  
+  // Can we insert into the subsequent node?
+  bool insert_next = false;
+  rope_node *next = NULL;
+  if (!insert_here) {
+    next = e ? e->nexts[0].node : (r->num_chars ? r->heads[0].node : NULL);
+    // We can insert into the subsequent node if:
+    // - We can't insert into the current node
+    // - There _is_ a next node to insert into
+    // - The insert would be at the start of the next node
+    // - There's room in the next node
+    insert_next = next
+        && (e == NULL || offset_bytes == e->num_bytes)
+        && next->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
   }
-
-  if (e && e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE) {
+  
+  if (insert_here || insert_next) {
+    if (insert_next) {
+      offset = offset_bytes = 0;
+      for (int i = 0; i < next->height; i++) {
+        nodes[i] = next;
+        // tree offset nodes not used.
+      }
+      e = next;
+    }
+    
     // First move the current bytes later on in the string.
     if (offset_bytes < e->num_bytes) {
       memmove(&e->str[offset_bytes + num_inserted_bytes],
@@ -475,3 +489,27 @@ void _rope_check(rope *r) {
   assert(r->num_bytes == num_bytes);
   assert(r->num_chars == num_chars);
 }
+
+// For debugging.
+#include <stdio.h>
+void _rope_print(rope *r) {
+  printf("chars: %ld\tbytes: %ld\theight: %d\n", r->num_chars, r->num_bytes, r->height);
+
+  printf("HEAD");
+  for (int i = 0; i < r->height; i++) {
+    printf(" |%3ld ", r->heads[i].skip_size);
+  }
+  printf("\n");
+  
+  int num = 0;
+  for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
+    printf("%3d:", num++);
+    for (int i = 0; i < n->height; i++) {
+      printf(" |%3ld ", n->nexts[i].skip_size);
+    }
+    printf("        : \"");
+    fwrite(n->str, n->num_bytes, 1, stdout);
+    printf("\"\n");
+  }
+}
+

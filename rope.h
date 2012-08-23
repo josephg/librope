@@ -75,5 +75,6 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 void rope_del(rope *r, size_t pos, size_t num);
 
 void _rope_check(rope *r);
+void _rope_print(rope *r);
 
 #endif

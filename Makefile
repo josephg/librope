@@ -1,7 +1,6 @@
 .PHONY: all clean
 
-# Only need corefoundation to run the tests on mac
-CFLAGS=-O2 -emit-llvm -Wall -framework CoreFoundation
+CFLAGS=-O2 -emit-llvm -Wall
 
 all: librope.a
 
@@ -17,6 +16,7 @@ tests.o: tests.c rope.h
 librope.a: rope.o
 	ar -r $@ $+
 
-tests: librope.a tests.c
-	$(CC) $(CFLAGS) $+ -o $@
+# Only need corefoundation to run the tests on mac
+tests: librope.a tests.c benchmark.c
+	$(CC) $(CFLAGS) -framework CoreFoundation $+ -o $@
 

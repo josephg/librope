@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-#include <sys/time.h>
 
+#include "tests.h"
 #include "rope.h"
 
 static float rand_float() {
@@ -13,7 +13,7 @@ static float rand_float() {
 }
 
 // s is an approximate size. Might use fewer bytes than that.
-static void random_unicode_string(uint8_t *buffer, size_t s) {
+void random_unicode_string(uint8_t *buffer, size_t s) {
   uint8_t *pos = buffer;
   
   while(buffer - pos > 6) {
@@ -45,7 +45,7 @@ static void random_unicode_string(uint8_t *buffer, size_t s) {
 
 static const char CHARS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 "0123456789!@#$%^&*()[]{}<>?,./";
-static void random_ascii_string(uint8_t *buffer, size_t len) {
+void random_ascii_string(uint8_t *buffer, size_t len) {
   assert(len);
   for (int i = 0; i < len - 1; i++) {
     buffer[i] = CHARS[random() % (sizeof(CHARS) - 1)];
@@ -115,7 +115,7 @@ static void test_insert_at_location() {
 
   rope_insert(r, 5, (uint8_t *)"DDD");
   check(r, "BBBAADDDACCC");
-
+  
   test(rope_char_count(r) == 12);
 
   rope_free(r);
@@ -182,8 +182,6 @@ static void test_really_long_ascii_string() {
 }
 
 // TODO: Should add a test for really long unicode strings as well
-
-#define MIN(x,y) ((x) > (y) ? (y) : (x))
 
 #ifndef __APPLE__
 #warning Not running random edits test
@@ -256,60 +254,13 @@ void test_all() {
   printf("Done!\n");
 }
 
-void benchmark() {
-  long iterations = 20000000;
-  struct timeval start, end;
-  
-  rope *r = rope_new();
-  uint8_t *strings[100];
-  for (int i = 0; i < 100; i++) {
-    size_t len = 1 + random() % 2;//i * i + 1;
-    strings[i] = calloc(1, len + 1);
-    random_ascii_string(strings[i], len + 1);
-  }
-
-  // We should pick the same random sequence each benchmark run.
-  unsigned long *rvals = malloc(sizeof(long) * iterations);
-  for (int i = 0; i < iterations; i++) {
-    rvals[i] = random();
-  }
-  
-  gettimeofday(&start, NULL);
-  
-  for (long i = 0; i < iterations; i++) {
-    if (r->num_chars == 0 || i % 20 > 0) {
-      // insert. (Inserts are way more common in practice than deletes.)
-      uint8_t *str = strings[i % 100];
-      rope_insert(r, rvals[i] % (r->num_chars + 1), str);
-    } else {
-      size_t pos = rvals[i] % r->num_chars;
-      size_t length = MIN(r->num_chars - pos, 1 + (~rvals[i]) % 53);
-      rope_del(r, pos, length);
-    }
-
-    //printf("%s\n", rope_createcstr(r, NULL));
-  }
-  
-  gettimeofday(&end, NULL);
-  
-  for (int i = 0; i < 100; i++) {
-    free(strings[i]);
-  }
-  double elapsedTime = end.tv_sec - start.tv_sec;
-  elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
-  printf("did %ld iterations in %f ms: %f Miter/sec\n",
-         iterations, elapsedTime * 1000, iterations / elapsedTime / 1000000);
-  printf("final string length: %zi, height: %d\n", r->num_chars, r->height);
-  printf("ROPE_BIAS: %d  STR_SIZE: %d\n", ROPE_BIAS, ROPE_NODE_STR_SIZE);
-
-  rope_free(r);
-}
-
-
 int main(int argc, const char * argv[]) {
-  test_all();
+  if (argc > 1 && strcmp(argv[1], "-b") == 0) {
+    benchmark();
+  } else {
+    test_all();
+  }
   
-  //benchmark();
   return 0;
 }
 

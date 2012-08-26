@@ -44,6 +44,10 @@ typedef struct {
   uint8_t height_capacity;
 } rope;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
 // Create a new rope with no contents
 rope *rope_new();
 
@@ -76,5 +80,9 @@ void rope_del(rope *r, size_t pos, size_t num);
 
 void _rope_check(rope *r);
 void _rope_print(rope *r);
+  
+#ifdef __cplusplus
+}
+#endif
 
 #endif

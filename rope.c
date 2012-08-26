@@ -99,7 +99,7 @@ size_t rope_byte_count(rope *r) {
 static uint8_t random_height() {
   uint8_t height = 1;
   
-  while(height <= UINT8_MAX && (random() % 100) < ROPE_BIAS) {
+  while(height < UINT8_MAX && (random() % 100) < ROPE_BIAS) {
     height++;
   }
   

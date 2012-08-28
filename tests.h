@@ -16,7 +16,7 @@ void random_unicode_string(uint8_t *buffer, size_t len);
 
 // len includes \0.
 void random_ascii_string(uint8_t *buffer, size_t len);  
-  
+
 #ifdef __cplusplus
 }
 #endif

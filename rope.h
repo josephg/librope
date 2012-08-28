@@ -15,8 +15,9 @@
 // These two magic values seem to be approximately optimal given the benchmark in
 // tests.c which does lots of small inserts.
 
-// Must be <= UINT16_MAX.
-#define ROPE_NODE_STR_SIZE 128
+// Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
+// (tested on a mac using clang 4.0 and x86_64).
+#define ROPE_NODE_STR_SIZE 138
 // The likelyhood (%) a node will have height (n+1) instead of n
 #define ROPE_BIAS 25
 
@@ -27,7 +28,14 @@ typedef struct {
   // The number of _characters_ between the start of the current node
   // and the start of next.
   size_t skip_size;
+
+  // For some reason, librope runs about 1% faster when this next pointer is
+  // exactly _here_ in the struct.
   struct rope_node_t *node;
+
+  size_t lines;
+  size_t tombs;
+
 } rope_next_node;
 
 typedef struct {

@@ -1,5 +1,7 @@
 *.o
 librope.a
-test
+tests
 *.swp
 .DS_Store
+Build
+*.dSYM

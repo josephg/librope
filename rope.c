@@ -97,6 +97,12 @@ size_t rope_byte_count(rope *r) {
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 
 static uint8_t random_height() {
+  // This function is horribly inefficient. I'm throwing away heaps of entropy, and
+  // the mod could be replaced by some clever shifting.
+  //
+  // However, random_height barely appears in the profiler output - so its probably
+  // not worth investing the time to optimise.
+
   uint8_t height = 1;
   
   while(height < UINT8_MAX && (random() % 100) < ROPE_BIAS) {
@@ -120,21 +126,21 @@ static rope_node *alloc_node(uint8_t height) {
   return node;
 }
 
+// Find out how many bytes the unicode character which starts with the specified byte
+// will occupy in memory.
+// Returns the number of bytes, or SIZE_MAX if the byte is invalid.
 static inline size_t codepoint_size(uint8_t byte) {
-  if (byte <= 0x7f) { return 1; }
-  else if (byte <= 0xdf) { return 2; }
-  else if (byte <= 0xef) { return 3; }
-  else if (byte <= 0xf7) { return 4; }
-  else if (byte <= 0xfb) { return 5; }
-  else if (byte <= 0xfd) { return 6; }
-  else {
-    // The codepoint is invalid... what do?
-    //assert(0);
-    return 1;
-  }
+  if (byte <= 0x7f) { return 1; } // 0x74 = 0111 1111
+  else if (byte <= 0xbf) { return SIZE_MAX; } // 1011 1111. Invalid for a starting byte.
+  else if (byte <= 0xdf) { return 2; } // 1101 1111
+  else if (byte <= 0xef) { return 3; } // 1110 1111
+  else if (byte <= 0xf7) { return 4; } // 1111 0111
+  else if (byte <= 0xfb) { return 5; } // 1111 1011
+  else if (byte <= 0xfd) { return 6; } // 1111 1101
+  else { return SIZE_MAX; }
 }
 
-// This little function counts how many bytes the some characters take up.
+// This little function counts how many bytes a certain number of characters take up.
 static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
   const uint8_t *p = str;
   for (unsigned int i = 0; i < num_chars; i++) {
@@ -143,12 +149,15 @@ static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
   return p - str;
 }
 
+// Count the number of characters in a string.
 static size_t utf8_strlen(const uint8_t *str) {
   const uint8_t *p = str;
+  size_t i = 0;
   while (*p) {
     p += codepoint_size(*p);
+    i++;
   }
-  return p - str;
+  return i;
 }
 
 // Internal function for navigating to a particular character offset in the rope.

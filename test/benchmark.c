@@ -8,13 +8,15 @@
 #include "rope.h"
 #include "tests.h"
 
+#include "slowstring.h"
+
 #ifdef __cplusplus
 #include <ext/rope>
 #endif
 
 // Wrapper for rope
 static void *_rope_create() {
-  return rope_new();
+  return (void *)rope_new();
 }
 
 static void _rope_insert(void *r, size_t pos, const uint8_t *str) {
@@ -33,98 +35,24 @@ static size_t _rope_num_chars(void *r) {
 
 // Wrapper for a vector-based string
 
-// Private rope methods, stolen for utf8 support in the string.
-static size_t codepoint_size(uint8_t byte) {
-  if (byte <= 0x7f) { return 1; }
-  else if (byte <= 0xdf) { return 2; }
-  else if (byte <= 0xef) { return 3; }
-  else if (byte <= 0xf7) { return 4; }
-  else if (byte <= 0xfb) { return 5; }
-  else if (byte <= 0xfd) { return 6; }
-  else {
-    // The codepoint is invalid... what do?
-    //assert(0);
-    return 1;
-  }
-}
-
-// This little function counts how many bytes the some characters take up.
-static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
-  const uint8_t *p = str;
-  for (int i = 0; i < num_chars; i++) {
-    p += codepoint_size(*p);
-  }
-  return p - str;
-}
-
-static size_t utf8_strlen(const uint8_t *str) {
-  const uint8_t *p = str;
-  while (*p) {
-    p += codepoint_size(*p);
-  }
-  return p - str;
-}
-
-typedef struct {
-  uint8_t *mem;
-  size_t capacity;
-  size_t len;
-  size_t num_chars;
-} _string;
-
 static void *_str_create() {
-  _string *s = (_string *)malloc(sizeof(_string));
-  s->capacity = 64; // A reasonable capacity considering...
-  s->mem = (uint8_t *)malloc(s->capacity);
-  s->len = 0;
-  s->num_chars = 0;
-  return s;
+  return (void *)str_create();
 }
 
 static void _str_insert(void *r, size_t pos, const uint8_t *str) {
-  _string *s = (_string *)r;
-  
-  size_t num_inserted_bytes = strlen((char *)str);
-  // Offset to insert at in the string.
-  size_t offset = count_bytes_in_chars(s->mem, pos);
-  size_t end_size = s->len - offset;
-  
-  // Resize if needed.
-  s->len += num_inserted_bytes;
-  if (s->len > s->capacity) {
-    while (s->len > s->capacity) {
-      s->capacity *= 2;
-    }
-    s->mem = (uint8_t *)realloc(s->mem, s->capacity);
-  }
-  s->num_chars += utf8_strlen(str);
-  
-  memmove(&s->mem[offset + num_inserted_bytes], &s->mem[offset], end_size);
-  memcpy(&s->mem[offset], str, num_inserted_bytes);
+  str_insert((_string *)r, pos, str);
 }
 
 static void _str_del(void *r, size_t pos, size_t len) {
-  _string *s = (_string *)r;
-  
-  // Offset to delete at in the string.
-  size_t offset = count_bytes_in_chars(s->mem, pos);
-  size_t num_bytes = count_bytes_in_chars(s->mem + offset, len);
-  size_t end_size = s->len - offset - num_bytes;
-
-  memmove(&s->mem[offset], &s->mem[offset + num_bytes], end_size);
-  s->len -= num_bytes;
-  s->num_chars -= len;
+  str_del((_string *)r, pos, len);
 }
 
 static void _str_destroy(void *r) {
-  _string *s = (_string *)r;
-  free(s->mem);
-  free(s);
+  str_destroy((_string *)r);
 }
 
 static size_t _str_num_chars(void *r) {
-  _string *s = (_string *)r;
-  return s->num_chars;
+  return str_num_chars((_string *)r);
 }
 
 // SGI C++ rope. To enable these benchmarks, compile this file using a C++ compiler. There's a
@@ -172,8 +100,8 @@ struct rope_implementation {
 void benchmark() {
   printf("Benchmarking...\n");
   
-  //long iterations = 20000000;
-  long iterations = 1000000;
+  long iterations = 20000000;
+//  long iterations = 1000000;
   struct timeval start, end;
   
   uint8_t *strings[100];
@@ -181,6 +109,7 @@ void benchmark() {
     size_t len = 1 + random() % 2;//i * i + 1;
     strings[i] = (uint8_t *)calloc(1, len + 1);
     random_ascii_string(strings[i], len + 1);
+//    random_unicode_string(strings[i], len + 1);
   }
   
   // We should pick the same random sequence each benchmark run.
@@ -190,7 +119,7 @@ void benchmark() {
   }
 
 //  for (int t = 0; t < sizeof(types) / sizeof(types[0]); t++) {
-  for (int t = 0; t < 2; t++) {
+  for (int t = 0; t < 1; t++) {
     printf("benchmarking %s\n", types[t].name);
     void *r = types[t].create();
     gettimeofday(&start, NULL);

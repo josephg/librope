@@ -4,15 +4,20 @@
 #include <stdio.h>
 #include <string.h>
 
+
 #include "rope.h"
 #include "tests.h"
+
+#ifdef __cplusplus
+#include <ext/rope>
+#endif
 
 // Wrapper for rope
 static void *_rope_create() {
   return rope_new();
 }
 
-static void _rope_insert(void *r, size_t pos, uint8_t *str) {
+static void _rope_insert(void *r, size_t pos, const uint8_t *str) {
   rope_insert((rope *)r, pos, str);
 }
 static void _rope_del(void *r, size_t pos, size_t len) {
@@ -68,15 +73,15 @@ typedef struct {
 } _string;
 
 static void *_str_create() {
-  _string *s = malloc(sizeof(_string));
+  _string *s = (_string *)malloc(sizeof(_string));
   s->capacity = 64; // A reasonable capacity considering...
-  s->mem = malloc(s->capacity);
+  s->mem = (uint8_t *)malloc(s->capacity);
   s->len = 0;
   s->num_chars = 0;
   return s;
 }
 
-static void _str_insert(void *r, size_t pos, uint8_t *str) {
+static void _str_insert(void *r, size_t pos, const uint8_t *str) {
   _string *s = (_string *)r;
   
   size_t num_inserted_bytes = strlen((char *)str);
@@ -90,7 +95,7 @@ static void _str_insert(void *r, size_t pos, uint8_t *str) {
     while (s->len > s->capacity) {
       s->capacity *= 2;
     }
-    s->mem = realloc(s->mem, s->capacity);
+    s->mem = (uint8_t *)realloc(s->mem, s->capacity);
   }
   s->num_chars += utf8_strlen(str);
   
@@ -122,44 +127,76 @@ static size_t _str_num_chars(void *r) {
   return s->num_chars;
 }
 
-struct {
-  char *name;
+// SGI C++ rope. To enable these benchmarks, compile this file using a C++ compiler. There's a
+// bug with some versions of clang and the rope library - you might have to switch to gcc.
+#ifdef __cplusplus
+static void *_sgi_create() {
+  return new __gnu_cxx::crope();
+}
+
+static void _sgi_insert(void *r, size_t pos, const uint8_t *str) {
+  __gnu_cxx::crope *rope = (__gnu_cxx::crope *)r;
+  rope->insert(pos, (const char *)str);
+}
+static void _sgi_del(void *r, size_t pos, size_t len) {
+  __gnu_cxx::crope *rope = (__gnu_cxx::crope *)r;
+  rope->erase(pos, len);
+}
+static void _sgi_destroy(void *r) {
+  __gnu_cxx::crope *rope = (__gnu_cxx::crope *)r;
+  delete rope;
+}
+
+static size_t _sgi_num_chars(void *r) {
+  __gnu_cxx::crope *rope = (__gnu_cxx::crope *)r;
+  return rope->size();
+}
+#endif
+
+
+struct rope_implementation {
+  const char *name;
   void* (*create)();
-  void (*insert)(void *r, size_t pos, uint8_t *str);
+  void (*insert)(void *r, size_t pos, const uint8_t *str);
   void (*del)(void *r, size_t pos, size_t len);
-  void (*destroy)();
+  void (*destroy)(void *r);
   size_t (*num_chars)(void *r);
 } types[] = {
   { "librope", &_rope_create, &_rope_insert, &_rope_del, &_rope_destroy, &_rope_num_chars },
+#ifdef __cplusplus
+  { "sgirope", &_sgi_create, &_sgi_insert, &_sgi_del, &_sgi_destroy, &_sgi_num_chars },
+#endif
   { "c string", &_str_create, &_str_insert, &_str_del, &_str_destroy, &_str_num_chars },
 };
 
 void benchmark() {
   printf("Benchmarking...\n");
   
+  //long iterations = 20000000;
   long iterations = 1000000;
   struct timeval start, end;
   
   uint8_t *strings[100];
   for (int i = 0; i < 100; i++) {
-    size_t len = 1 + random() % 20;//i * i + 1;
-    strings[i] = calloc(1, len + 1);
+    size_t len = 1 + random() % 2;//i * i + 1;
+    strings[i] = (uint8_t *)calloc(1, len + 1);
     random_ascii_string(strings[i], len + 1);
   }
   
   // We should pick the same random sequence each benchmark run.
-  unsigned long *rvals = malloc(sizeof(long) * iterations);
+  unsigned long *rvals = (unsigned long *)malloc(sizeof(long) * iterations);
   for (int i = 0; i < iterations; i++) {
     rvals[i] = random();
   }
 
-  for (int t = 0; t < sizeof(types) / sizeof(types[0]); t++) {
+//  for (int t = 0; t < sizeof(types) / sizeof(types[0]); t++) {
+  for (int t = 0; t < 2; t++) {
     printf("benchmarking %s\n", types[t].name);
     void *r = types[t].create();
     gettimeofday(&start, NULL);
     
     for (long i = 0; i < iterations; i++) {
-      if (types[t].num_chars(r) == 0 || i % 20 > 10) {
+      if (types[t].num_chars(r) == 0 || i % 20 > 0) {
         // insert. (Inserts are way more common in practice than deletes.)
         uint8_t *str = strings[i % 100];
         types[t].insert(r, rvals[i] % (types[t].num_chars(r) + 1), str);

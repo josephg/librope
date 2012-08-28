@@ -24,10 +24,10 @@ typedef struct rope_node_t {
 
 // Create a new rope with no contents
 rope *rope_new() {
-  rope *r = calloc(1, sizeof(rope));
+  rope *r = (rope *)calloc(1, sizeof(rope));
   r->height = 0;
   r->height_capacity = 10;
-  r->heads = malloc(sizeof(rope_next_node) * 10);
+  r->heads = (rope_next_node *)malloc(sizeof(rope_next_node) * 10);
   return r;
 }
 
@@ -58,7 +58,7 @@ void rope_free(rope *r) {
 // the rope encoded as utf-8.
 uint8_t *rope_createcstr(rope *r, size_t *len) {
   size_t numbytes = rope_byte_count(r);
-  uint8_t *bytes = malloc(numbytes + 1); // Room for a zero.
+  uint8_t *bytes = (uint8_t *)malloc(numbytes + 1); // Room for a zero.
   bytes[numbytes] = '\0';
   
   if (numbytes == 0) {
@@ -115,7 +115,7 @@ static size_t node_size(uint8_t height) {
 // for its height.
 // This function should be replaced at some point with an object pool based version.
 static rope_node *alloc_node(uint8_t height) {
-  rope_node *node = malloc(node_size(height));
+  rope_node *node = (rope_node *)malloc(node_size(height));
   node->height = height;
   return node;
 }
@@ -137,7 +137,7 @@ static inline size_t codepoint_size(uint8_t byte) {
 // This little function counts how many bytes the some characters take up.
 static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
   const uint8_t *p = str;
-  for (int i = 0; i < num_chars; i++) {
+  for (unsigned int i = 0; i < num_chars; i++) {
     p += codepoint_size(*p);
   }
   return p - str;
@@ -238,7 +238,7 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
       do {
         r->height_capacity *= 2;
       } while (r->height_capacity < r->height);
-      r->heads = realloc(r->heads, sizeof(rope_next_node) * r->height_capacity);
+      r->heads = (rope_next_node *)realloc(r->heads, sizeof(rope_next_node) * r->height_capacity);
     }
   }
 

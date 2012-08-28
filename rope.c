@@ -2,7 +2,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+// Needed for VC++, which always compiles in C++ mode and doesn't have stdbool.
+#ifndef __cplusplus
 #include <stdbool.h>
+#endif
+
 #include <assert.h>
 #include "rope.h"
 

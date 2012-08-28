@@ -17,9 +17,9 @@ static float rand_float() {
 // As far as I can tell, there are no unicode characters assigned which
 // take up more than 4 bytes in utf-8.
 static const char *UCHARS[] = {
-  "a", "b", "c", "1", "2", "3", // Some ascii
-  "€", "¥", "½", // from the latin-1 suppliment (U+80 - U+ff)
-  "Ύ", "Δ", "δ", "Ϡ", // Greek - Ύ Δ δ Ϡ (U+0370 - U+03FF)
+  "a", "b", "c", "1", "2", "3", // Some ASCII
+  "€", "¥", "½", // The Latin-1 suppliment (U+80 - U+ff)
+  "Ύ", "Δ", "δ", "Ϡ", // Greek (U+0370 - U+03FF)
   "←", "↯", "↻", "⇈", // Arrows (U+2190 – U+21FF)
   "𐆐", "𐆔", "𐆘", "𐆚", // Ancient roman symbols (U+10190 – U+101CF)
 };

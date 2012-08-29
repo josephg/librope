@@ -17,14 +17,15 @@ static float rand_float() {
 // As far as I can tell, there are no unicode characters assigned which
 // take up more than 4 bytes in utf-8.
 static const char *UCHARS[] = {
-  "a", "b", "c", "1", "2", "3", // Some ASCII
+  "a", "b", "c", "1", "2", "3", " ", "\n", // ASCII
   "€", "¥", "½", // The Latin-1 suppliment (U+80 - U+ff)
   "Ύ", "Δ", "δ", "Ϡ", // Greek (U+0370 - U+03FF)
   "←", "↯", "↻", "⇈", // Arrows (U+2190 – U+21FF)
   "𐆐", "𐆔", "𐆘", "𐆚", // Ancient roman symbols (U+10190 – U+101CF)
 };
 
-// s is an approximate size. Might use fewer bytes than that.
+// s is the size of the buffer, including the \0. This function might use
+// fewer bytes than that.
 void random_unicode_string(uint8_t *buffer, size_t s) {
   if (s == 0) { return; }
   uint8_t *pos = buffer;
@@ -189,6 +190,32 @@ static void test_really_long_ascii_string() {
   rope_free(r);
 }
 
+static int alloced_regions = 0;
+
+void *_alloc(size_t size) {
+  alloced_regions++;
+  return malloc(size);
+}
+
+void _free(void *mem) {
+  alloced_regions--;
+  free(mem);
+}
+
+static void test_custom_allocator() {
+  // Its really hard to test that malloc is never called, but I can make sure
+  // custom frees match custom allocs.
+  rope *r = rope_new2(_alloc, realloc, _free);
+  for (int i = 0; i < 100; i++) {
+    rope_insert(r, random() % (rope_char_count(r) + 1),
+        (uint8_t *)"Whoa super happy fun times!\n");
+  }
+
+  rope_free(r);
+
+  test(alloced_regions == 0);
+}
+
 static void test_random_edits() {
   // This string should always have the same content as the rope.
   _string *str = str_create();
@@ -245,6 +272,7 @@ void test_all() {
   test_delete_at_location();
   test_delete_past_end_of_string();
   test_really_long_ascii_string();
+  test_custom_allocator();
   test_random_edits();
   printf("Done!\n");
 }

@@ -32,11 +32,31 @@ rope *rope_new() {
   rope *r = (rope *)calloc(1, sizeof(rope));
   r->height = 0;
   r->height_capacity = 10;
-  r->heads = (rope_next_node *)malloc(sizeof(rope_next_node) * 10);
+  r->heads = (rope_next_node *)malloc(sizeof(rope_next_node) * r->height_capacity);
+  
+  r->alloc = malloc;
+  r->realloc = realloc;
+  r->free = free;
   return r;
 }
 
-// Create a new rope with no contents
+rope *rope_new2(void *(*alloc)(size_t bytes),
+                void *(*realloc)(void *ptr, size_t newsize),
+                void (*free)(void *ptr)) {
+  rope *r = (rope *)alloc(sizeof(rope));
+  r->num_chars = r->num_bytes = 0;
+  
+  r->height = 0;
+  r->height_capacity = 10;
+  r->heads = (rope_next_node *)alloc(sizeof(rope_next_node) * r->height_capacity);
+  
+  r->alloc = alloc;
+  r->realloc = realloc;
+  r->free = free;
+  return r;
+}
+
+// Create a new rope containing the specified string
 rope *rope_new_with_utf8(const uint8_t *str) {
   rope *r = rope_new();
   rope_insert(r, 0, str);
@@ -51,19 +71,19 @@ void rope_free(rope *r) {
   if (r->height > 0) {
     for (rope_node *n = r->heads[0].node; n != NULL; n = next) {
       next = n->nexts[0].node;
-      free(n);
+      r->free(n);
     }
   }
   
-  free(r->heads);
-  free(r);
+  r->free(r->heads);
+  r->free(r);
 }
 
 // Create a new C string which contains the rope. The string will contain
 // the rope encoded as utf-8.
 uint8_t *rope_createcstr(rope *r, size_t *len) {
   size_t numbytes = rope_byte_count(r);
-  uint8_t *bytes = (uint8_t *)malloc(numbytes + 1); // Room for a zero.
+  uint8_t *bytes = (uint8_t *)r->alloc(numbytes + 1); // Room for a zero.
   bytes[numbytes] = '\0';
   
   if (numbytes == 0) {
@@ -125,8 +145,8 @@ static size_t node_size(uint8_t height) {
 // Allocate and return a new node. The new node will be full of junk, except
 // for its height.
 // This function should be replaced at some point with an object pool based version.
-static rope_node *alloc_node(uint8_t height) {
-  rope_node *node = (rope_node *)malloc(node_size(height));
+static rope_node *alloc_node(rope *r, uint8_t height) {
+  rope_node *node = (rope_node *)r->alloc(node_size(height));
   node->height = height;
   return node;
 }
@@ -241,7 +261,7 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
   // This describes how many of the nodes[] and tree_offsets[] arrays are filled in.
   uint8_t max_height = r->height;
   uint8_t new_height = random_height();
-  rope_node *new_node = alloc_node(new_height);
+  rope_node *new_node = alloc_node(r, new_height);
   new_node->num_bytes = num_bytes;
   memcpy(new_node->str, str, num_bytes);
   
@@ -252,7 +272,7 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
       do {
         r->height_capacity *= 2;
       } while (r->height_capacity < r->height);
-      r->heads = (rope_next_node *)realloc(r->heads, sizeof(rope_next_node) * r->height_capacity);
+      r->heads = (rope_next_node *)r->realloc(r->heads, sizeof(rope_next_node) * r->height_capacity);
     }
   }
 
@@ -468,7 +488,7 @@ void rope_del(rope *r, size_t pos, size_t length) {
       r->num_bytes -= e->num_bytes;
       // TODO: Recycle e.
       rope_node *next = e->nexts[0].node;
-      free(e);
+      r->free(e);
       e = next;
       offset = 0;
     }

@@ -4,6 +4,9 @@
  * insert-at-position and delete-at-position operations.
  * 
  * It uses skip lists instead of trees. Trees might be faster - who knows?
+ *
+ * Ropes are NOT THREAD SAFE. Do not call multiple rope methods
+ * simultaneously from different threads.
  */
 
 #ifndef librope_rope_h
@@ -50,6 +53,10 @@ typedef struct {
 
   uint8_t height;
   uint8_t height_capacity;
+  
+  void *(*alloc)(size_t bytes);
+  void *(*realloc)(void *ptr, size_t newsize);
+  void (*free)(void *ptr);
 } rope;
 
 #ifdef __cplusplus
@@ -59,7 +66,13 @@ extern "C" {
 // Create a new rope with no contents
 rope *rope_new();
 
-// Create a new rope with no contents
+// Create a new rope using custom allocators.
+rope *rope_new2(void *(*alloc)(size_t bytes),
+    void *(*realloc)(void *ptr, size_t newsize),
+    void (*free)(void *ptr));
+
+// Create a new rope containing a copy of the given string. Shorthand for
+// r = rope_new(); rope_insert(r, 0, str);
 rope *rope_new_with_utf8(const uint8_t *str);
 
 // Free the specified rope

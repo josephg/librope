@@ -3,12 +3,12 @@
 CFLAGS=-O2 -emit-llvm -Wall -arch x86_64 -I.
 
 # Debug mode.
-#CFLAGS=-g -Wall -arch x86_64
+#CFLAGS=-g -Wall -arch x86_64 -I.
 
 all: librope.a
 
 clean:
-	rm librope.a *.o tests
+	rm -f librope.a *.o tests
 
 rope.o: rope.c rope.h
 	$(CC) $(CFLAGS) $< -c

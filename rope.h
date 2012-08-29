@@ -4,6 +4,9 @@
  * insert-at-position and delete-at-position operations.
  * 
  * It uses skip lists instead of trees. Trees might be faster - who knows?
+ *
+ * Ropes are NOT THREAD SAFE. Do not call multiple rope methods
+ * simultaneously from different threads.
  */
 
 #ifndef librope_rope_h
@@ -15,8 +18,9 @@
 // These two magic values seem to be approximately optimal given the benchmark in
 // tests.c which does lots of small inserts.
 
-// Must be <= UINT16_MAX.
-#define ROPE_NODE_STR_SIZE 128
+// Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
+// (tested on a mac using clang 4.0 and x86_64).
+#define ROPE_NODE_STR_SIZE 138
 // The likelyhood (%) a node will have height (n+1) instead of n
 #define ROPE_BIAS 25
 
@@ -27,7 +31,14 @@ typedef struct {
   // The number of _characters_ between the start of the current node
   // and the start of next.
   size_t skip_size;
+
+  // For some reason, librope runs about 1% faster when this next pointer is
+  // exactly _here_ in the struct.
   struct rope_node_t *node;
+
+  size_t lines;
+  size_t tombs;
+
 } rope_next_node;
 
 typedef struct {
@@ -42,12 +53,26 @@ typedef struct {
 
   uint8_t height;
   uint8_t height_capacity;
+  
+  void *(*alloc)(size_t bytes);
+  void *(*realloc)(void *ptr, size_t newsize);
+  void (*free)(void *ptr);
 } rope;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
 // Create a new rope with no contents
 rope *rope_new();
 
-// Create a new rope with no contents
+// Create a new rope using custom allocators.
+rope *rope_new2(void *(*alloc)(size_t bytes),
+    void *(*realloc)(void *ptr, size_t newsize),
+    void (*free)(void *ptr));
+
+// Create a new rope containing a copy of the given string. Shorthand for
+// r = rope_new(); rope_insert(r, 0, str);
 rope *rope_new_with_utf8(const uint8_t *str);
 
 // Free the specified rope
@@ -76,5 +101,9 @@ void rope_del(rope *r, size_t pos, size_t num);
 
 void _rope_check(rope *r);
 void _rope_print(rope *r);
+  
+#ifdef __cplusplus
+}
+#endif
 
 #endif

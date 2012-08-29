@@ -6,41 +6,46 @@
 #include <string.h>
 
 #include "tests.h"
+#include "slowstring.h"
 #include "rope.h"
 
 static float rand_float() {
   return (float)random() / INT32_MAX;
 }
 
-// s is an approximate size. Might use fewer bytes than that.
+// A selection of different unicode characters to pick from.
+// As far as I can tell, there are no unicode characters assigned which
+// take up more than 4 bytes in utf-8.
+static const char *UCHARS[] = {
+  "a", "b", "c", "1", "2", "3", " ", "\n", // ASCII
+  "€", "¥", "½", // The Latin-1 suppliment (U+80 - U+ff)
+  "Ύ", "Δ", "δ", "Ϡ", // Greek (U+0370 - U+03FF)
+  "←", "↯", "↻", "⇈", // Arrows (U+2190 – U+21FF)
+  "𐆐", "𐆔", "𐆘", "𐆚", // Ancient roman symbols (U+10190 – U+101CF)
+};
+
+// s is the size of the buffer, including the \0. This function might use
+// fewer bytes than that.
 void random_unicode_string(uint8_t *buffer, size_t s) {
+  if (s == 0) { return; }
   uint8_t *pos = buffer;
   
-  while(buffer - pos > 6) {
-    uint8_t byte;
-    do {
-      byte = random() % 0xff;
-    } while(byte == 0);
+  while(1) {
+    uint8_t *c = (uint8_t *)UCHARS[random() % (sizeof(UCHARS) / sizeof(UCHARS[0]))];
     
-    int trailing_bytes;
-    if (byte <= 0x7f) { trailing_bytes = 0; }
-    else if (byte <= 0xdf) { trailing_bytes = 1; }
-    else if (byte <= 0xef) { trailing_bytes = 2; }
-    else if (byte <= 0xf7) { trailing_bytes = 3; }
-    else if (byte <= 0xfb) { trailing_bytes = 4; }
-    else if (byte <= 0xfd) { trailing_bytes = 5; }
-    else {
-      // 0xfd is the highest valid first byte in a utf8 string.
-      // I'll just map it back to an 'a'.
-      byte = 'a';
-      trailing_bytes = 0;
+    size_t bytes = strlen((char *)c);
+    
+    size_t remaining_space = buffer + s - pos - 1;
+    
+    if (remaining_space < bytes) {
+      break;
     }
     
-    *pos++ = byte;
-    for (int i = 0; i < trailing_bytes; i++) {
-      *pos++ = (random() % 0x3f) | 0x80;
-    }
+    memcpy(pos, c, bytes);
+    pos += bytes;
   }
+  
+  *pos = '\0';
 }
 
 static const char CHARS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -98,6 +103,10 @@ static void test_new_string_has_content() {
   r = rope_new_with_utf8((uint8_t *)"κόσμε");
   check(r, "κόσμε");
   test(rope_char_count(r) == 5);
+  
+  rope_insert(r, 2, (uint8_t *)"𝕐𝕆𝌀");
+  check(r, "κό𝕐𝕆𝌀σμε");
+  test(rope_char_count(r) == 8);
   rope_free(r);
 }
 
@@ -181,45 +190,59 @@ static void test_really_long_ascii_string() {
   rope_free(r);
 }
 
-// TODO: Should add a test for really long unicode strings as well
+static int alloced_regions = 0;
 
-#ifndef __APPLE__
-#warning Not running random edits test
-static void test_random_edits() {}
-#else
-#include <CoreFoundation/CoreFoundation.h>
+void *_alloc(size_t size) {
+  alloced_regions++;
+  return malloc(size);
+}
+
+void _free(void *mem) {
+  alloced_regions--;
+  free(mem);
+}
+
+static void test_custom_allocator() {
+  // Its really hard to test that malloc is never called, but I can make sure
+  // custom frees match custom allocs.
+  rope *r = rope_new2(_alloc, realloc, _free);
+  for (int i = 0; i < 100; i++) {
+    rope_insert(r, random() % (rope_char_count(r) + 1),
+        (uint8_t *)"Whoa super happy fun times!\n");
+  }
+
+  rope_free(r);
+
+  test(alloced_regions == 0);
+}
+
 static void test_random_edits() {
   // This string should always have the same content as the rope.
-  CFMutableStringRef str = CFStringCreateMutable(NULL, 0);
+  _string *str = str_create();
   rope *r = rope_new();
   
-  const size_t bufsize = 100000000;
-  char *buffer = malloc(bufsize);
-  
   const size_t max_stringsize = 1000;
-  uint8_t strbuffer[max_stringsize];
+  uint8_t strbuffer[max_stringsize + 1];
   
-  for (int i = 0; i < 10000; i++) {
+  for (int i = 0; i < 1000; i++) {
     // First, some sanity checks.
-    CFStringGetCString(str, buffer, bufsize, kCFStringEncodingUTF8);
-    check(r, buffer);
-    test(rope_byte_count(r) == strlen(buffer));
-    size_t len = utf8_strlen((uint8_t *)buffer);
+    check(r, (char *)str->mem);
+//    printf("String contains '%s'\n", str->mem);
+    
+    test(rope_byte_count(r) == str->len);
+    size_t len = utf8_strlen(str->mem);
     test(rope_char_count(r) == len);
+    test(str_num_chars(str) == len);
     
     if (len == 0 || rand_float() < 0.5f) {
       // Insert.
       //uint8_t *text = random_ascii_string(11);
-      random_unicode_string(strbuffer, random() % max_stringsize);
+      random_unicode_string(strbuffer, 1 + random() % max_stringsize);
       size_t pos = random() % (len + 1);
       
-      //printf("inserting %s at %zd\n", text, pos);
+//      printf("inserting %s at %zd\n", strbuffer, pos);
       rope_insert(r, pos, strbuffer);
-      
-      CFStringRef ins = CFStringCreateWithCString(NULL, (char *)strbuffer, kCFStringEncodingUTF8);
-      CFStringInsert(str, pos, ins);
-      
-      CFRelease(ins);
+      str_insert(str, pos, strbuffer);
     } else {
       // Delete
       size_t pos = random() % len;
@@ -227,20 +250,19 @@ static void test_random_edits() {
       size_t dellen = random() % 10;
       dellen = MIN(len - pos, dellen);
       
-      //printf("deleting %zd chars at %zd\n", dellen, pos);
+//      printf("deleting %zd chars at %zd\n", dellen, pos);
 
       //deletedText = str[pos...pos + length]
       //test.strictEqual deletedText, r.substring pos, length
 
       rope_del(r, pos, dellen);
-      
-      CFStringDelete(str, CFRangeMake(pos, dellen));
+      str_del(str, pos, dellen);
     }
   }
   
-  free(buffer);
+  rope_free(r);
+  str_destroy(str);
 }
-#endif
 
 void test_all() {
   printf("Running tests...\n");
@@ -250,15 +272,16 @@ void test_all() {
   test_delete_at_location();
   test_delete_past_end_of_string();
   test_really_long_ascii_string();
+  test_custom_allocator();
   test_random_edits();
   printf("Done!\n");
 }
 
 int main(int argc, const char * argv[]) {
+  test_all();
+  
   if (argc > 1 && strcmp(argv[1], "-b") == 0) {
     benchmark();
-  } else {
-    test_all();
   }
   
   return 0;

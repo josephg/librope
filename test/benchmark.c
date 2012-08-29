@@ -103,6 +103,9 @@ void benchmark() {
   long iterations = 20000000;
 //  long iterations = 1000000;
   struct timeval start, end;
+
+  // Make the test stable
+  srandom(1234);
   
   uint8_t *strings[100];
   for (int i = 0; i < 100; i++) {

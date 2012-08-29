@@ -3,3 +3,8 @@ librope.a
 test
 *.swp
 .DS_Store
+Debug
+Release
+librope.suo
+librope.sdf
+librope.vcxproj.*

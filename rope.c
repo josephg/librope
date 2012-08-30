@@ -24,7 +24,7 @@ typedef struct rope_node_t {
   // unused for now - should be useful for object pools.
   //uint8_t height_capacity;
   
-  rope_next_node nexts[0];
+  rope_next_node nexts[];
 } rope_node;
 
 // Create a new rope with no contents
@@ -120,6 +120,12 @@ size_t rope_byte_count(rope *r) {
 
 #define MIN(x,y) ((x) > (y) ? (y) : (x))
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
+
+#ifdef _WIN32
+inline static long random() {
+  return rand();
+}
+#endif
 
 static uint8_t random_height() {
   // This function is horribly inefficient. I'm throwing away heaps of entropy, and

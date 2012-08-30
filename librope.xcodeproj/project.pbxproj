@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		FD5D7C3315E1DC4A00F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
-		FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */ = {isa = PBXBuildFile; fileRef = FD5D7C3215E1DC4A00F847DF /* rope.c */; };
+		FD90DBF315EF60900045B2C2 /* librope.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FD5D7C2515E1DBAD00F847DF /* librope.a */; };
 		FD967CC215ECBF8600B36CA1 /* benchmark.c in Sources */ = {isa = PBXBuildFile; fileRef = FD967CBD15ECBF8600B36CA1 /* benchmark.c */; };
 		FD967CC315ECBF8600B36CA1 /* slowstring.c in Sources */ = {isa = PBXBuildFile; fileRef = FD967CBE15ECBF8600B36CA1 /* slowstring.c */; };
 		FD967CC415ECBF8600B36CA1 /* tests.c in Sources */ = {isa = PBXBuildFile; fileRef = FD967CC015ECBF8600B36CA1 /* tests.c */; };
@@ -28,7 +28,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		FD5D7C2515E1DBAD00F847DF /* liblibrope.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibrope.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD5D7C2515E1DBAD00F847DF /* librope.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = librope.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD5D7C3215E1DC4A00F847DF /* rope.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rope.c; sourceTree = "<group>"; };
 		FD5D7C3515E1DC5300F847DF /* rope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rope.h; sourceTree = "<group>"; };
 		FD5D7C3C15E1DCA100F847DF /* tests */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tests; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -51,6 +51,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD90DBF315EF60900045B2C2 /* librope.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,7 +71,7 @@
 		FD5D7C2615E1DBAD00F847DF /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FD5D7C2515E1DBAD00F847DF /* liblibrope.a */,
+				FD5D7C2515E1DBAD00F847DF /* librope.a */,
 				FD5D7C3C15E1DCA100F847DF /* tests */,
 			);
 			name = Products;
@@ -102,9 +103,9 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		FD5D7C2415E1DBAD00F847DF /* librope */ = {
+		FD5D7C2415E1DBAD00F847DF /* rope */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FD5D7C2915E1DBAD00F847DF /* Build configuration list for PBXNativeTarget "librope" */;
+			buildConfigurationList = FD5D7C2915E1DBAD00F847DF /* Build configuration list for PBXNativeTarget "rope" */;
 			buildPhases = (
 				FD5D7C2115E1DBAD00F847DF /* Sources */,
 				FD5D7C2215E1DBAD00F847DF /* Frameworks */,
@@ -114,9 +115,9 @@
 			);
 			dependencies = (
 			);
-			name = librope;
+			name = rope;
 			productName = librope;
-			productReference = FD5D7C2515E1DBAD00F847DF /* liblibrope.a */;
+			productReference = FD5D7C2515E1DBAD00F847DF /* librope.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 		FD5D7C3B15E1DCA100F847DF /* tests */ = {
@@ -157,7 +158,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				FD5D7C2415E1DBAD00F847DF /* librope */,
+				FD5D7C2415E1DBAD00F847DF /* rope */,
 				FD5D7C3B15E1DCA100F847DF /* tests */,
 			);
 		};
@@ -176,7 +177,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FD5D7C4E15E1E1C500F847DF /* rope.c in Sources */,
 				FD967CC215ECBF8600B36CA1 /* benchmark.c in Sources */,
 				FD967CC315ECBF8600B36CA1 /* slowstring.c in Sources */,
 				FD967CC415ECBF8600B36CA1 /* tests.c in Sources */,
@@ -276,7 +276,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FD5D7C2915E1DBAD00F847DF /* Build configuration list for PBXNativeTarget "librope" */ = {
+		FD5D7C2915E1DBAD00F847DF /* Build configuration list for PBXNativeTarget "rope" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FD5D7C2A15E1DBAD00F847DF /* Debug */,

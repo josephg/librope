@@ -35,7 +35,7 @@ static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
   return p - str;
 }
 
-static size_t utf8_strlen(const uint8_t *str) {
+static size_t strlen_utf8(const uint8_t *str) {
   const uint8_t *p = str;
   size_t i = 0;
   while (*p) {
@@ -69,7 +69,7 @@ void str_insert(_string *s, size_t pos, const uint8_t *str) {
     }
     s->mem = (uint8_t *)realloc(s->mem, s->capacity);
   }
-  s->num_chars += utf8_strlen(str);
+  s->num_chars += strlen_utf8(str);
   
   memmove(&s->mem[offset + num_inserted_bytes], &s->mem[offset], end_size);
   memcpy(&s->mem[offset], str, num_inserted_bytes);

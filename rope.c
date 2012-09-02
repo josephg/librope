@@ -181,7 +181,7 @@ static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
 }
 
 // Count the number of characters in a string.
-static size_t utf8_strlen(const uint8_t *str) {
+static size_t strlen_utf8(const uint8_t *str) {
   const uint8_t *p = str;
   size_t i = 0;
   while (*p) {
@@ -387,7 +387,7 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     e->num_bytes += num_inserted_bytes;
     
     r->num_bytes += num_inserted_bytes;
-    size_t num_inserted_chars = utf8_strlen(str);
+    size_t num_inserted_chars = strlen_utf8(str);
     r->num_chars += num_inserted_chars;
     
     // .... aaaand update all the offset amounts.

@@ -58,7 +58,7 @@ void random_ascii_string(uint8_t *buffer, size_t len) {
   buffer[len - 1] = '\0';
 }
 
-size_t utf8_strlen(uint8_t *data) {
+static size_t strlen_utf8(uint8_t *data) {
   size_t numchars = 0;
   
   while (*data) {
@@ -230,7 +230,7 @@ static void test_random_edits() {
 //    printf("String contains '%s'\n", str->mem);
     
     test(rope_byte_count(r) == str->len);
-    size_t len = utf8_strlen(str->mem);
+    size_t len = strlen_utf8(str->mem);
     test(rope_char_count(r) == len);
     test(str_num_chars(str) == len);
     

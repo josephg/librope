@@ -99,9 +99,10 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
 
+// For debugging.
 void _rope_check(rope *r);
 void _rope_print(rope *r);
-  
+
 #ifdef __cplusplus
 }
 #endif

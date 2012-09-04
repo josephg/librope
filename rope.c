@@ -322,6 +322,9 @@ static void insert_at(rope *r, size_t pos, const uint8_t *str,
 void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   assert(r);
   assert(str);
+#ifdef DEBUG
+  _rope_check(r);
+#endif
   pos = MIN(pos, r->num_chars);
 
   // There's a good chance we'll have to rewrite a bunch of next pointers and a bunch
@@ -438,11 +441,18 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
       insert_at(r, pos, &e->str[offset_bytes], num_end_bytes, num_end_chars, nodes, tree_offsets);
     }
   }
+  
+#ifdef DEBUG
+  _rope_check(r);
+#endif
 }
 
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t length) {
+#ifdef DEBUG
+  _rope_check(r);
+#endif
   assert(r);
   pos = MIN(pos, r->num_chars);
   length = MIN(length, r->num_chars - pos);
@@ -496,7 +506,6 @@ void rope_del(rope *r, size_t pos, size_t length) {
       rope_node *next = e->nexts[0].node;
       r->free(e);
       e = next;
-      offset = 0;
     }
     
     for (; i < r->height; i++) {
@@ -509,6 +518,9 @@ void rope_del(rope *r, size_t pos, size_t length) {
     
     length -= removed;
   }
+#ifdef DEBUG
+  _rope_check(r);
+#endif
 }
 
 void _rope_check(rope *r) {
@@ -518,10 +530,14 @@ void _rope_check(rope *r) {
     return;
   }
   
+  assert(r->num_bytes >= r->num_chars);
+  
   size_t num_bytes = 0;
   size_t num_chars = 0;
 
   for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
+    assert(n->num_bytes);
+    assert(count_bytes_in_chars(n->str, n->nexts[0].skip_size) == n->num_bytes);
     num_bytes += n->num_bytes;
     num_chars += n->nexts[0].skip_size;
   }

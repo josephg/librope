@@ -95,6 +95,6 @@ void str_destroy(_string *s) {
   free(s);
 }
 
-size_t str_num_chars(_string *s) {
+size_t str_num_chars(const _string *s) {
   return s->num_chars;
 }

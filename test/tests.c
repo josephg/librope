@@ -18,7 +18,7 @@ static float rand_float() {
 // take up more than 4 bytes in utf-8.
 static const char *UCHARS[] = {
   "a", "b", "c", "1", "2", "3", " ", "\n", // ASCII
-  "€", "¥", "½", // The Latin-1 suppliment (U+80 - U+ff)
+  "©", "¥", "½", // The Latin-1 suppliment (U+80 - U+ff)
   "Ύ", "Δ", "δ", "Ϡ", // Greek (U+0370 - U+03FF)
   "←", "↯", "↻", "⇈", // Arrows (U+2190 – U+21FF)
   "𐆐", "𐆔", "𐆘", "𐆚", // Ancient roman symbols (U+10190 – U+101CF)

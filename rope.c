@@ -63,6 +63,45 @@ rope *rope_new_with_utf8(const uint8_t *str) {
   return r;
 }
 
+rope *rope_copy(const rope *other) {
+  rope *r = (rope *)other->alloc(sizeof(rope));
+  
+  // Just copy most of the head's data.
+  *r = *other;
+  r->heads = (rope_next_node *)r->alloc(sizeof(rope_next_node) * r->height_capacity);
+  memcpy(r->heads, other->heads, sizeof(rope_next_node) * r->height);
+
+  if (r->height == 0) {
+    return r;
+  }
+  
+  rope_node *nodes[UINT8_MAX] = {};
+  
+  for (rope_node *n = other->heads[0].node; n != NULL; n = n->nexts[0].node) {
+    // I wonder if it would be faster if we took this opportunity to rebalance
+    // the node list..? Eh.
+    size_t h = n->height;
+    rope_node *n2 = (rope_node *)r->alloc(sizeof(rope_node) + h * sizeof(rope_next_node));
+    
+    // Would it be faster to just *n2 = *n; ?
+    n2->num_bytes = n->num_bytes;
+    n2->height = h;
+    memcpy(n2->str, n->str, n->num_bytes);
+    memcpy(n2->nexts, n->nexts, h * sizeof(rope_next_node));
+    
+    for (int i = 0; i < h; i++) {
+      if (nodes[i] == NULL) {
+        nodes[i] = r->heads[i].node = n2;
+      } else {
+        nodes[i]->nexts[i].node = n2;
+        nodes[i] = n2;
+      }
+    }
+  }
+  
+  return r;
+}
+
 // Free the specified rope
 void rope_free(rope *r) {
   assert(r);

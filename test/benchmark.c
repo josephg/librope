@@ -116,7 +116,7 @@ void benchmark() {
   }
   
   // We should pick the same random sequence each benchmark run.
-  unsigned long *rvals = (unsigned long *)malloc(sizeof(long) * iterations);
+  unsigned long *rvals = (unsigned long *)malloc(sizeof(unsigned long) * iterations);
   for (int i = 0; i < iterations; i++) {
     rvals[i] = random();
   }

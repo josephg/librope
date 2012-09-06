@@ -216,6 +216,20 @@ static void test_custom_allocator() {
   test(alloced_regions == 0);
 }
 
+static void test_copy() {
+  // Copy an empty string.
+  rope *r1 = rope_new();
+  rope *r2 = rope_copy(r1);
+  check(r2, "");
+  rope_free(r2);
+  
+  // Insert some text (less than one node worth)
+  rope_insert(r1, 0, (uint8_t *)"Eureka!");
+  r2 = rope_copy(r1);
+  check(r2, "Eureka!");
+  rope_free(r2);
+}
+
 static void test_random_edits() {
   // This string should always have the same content as the rope.
   _string *str = str_create();
@@ -227,6 +241,11 @@ static void test_random_edits() {
   for (int i = 0; i < 1000; i++) {
     // First, some sanity checks.
     check(r, (char *)str->mem);
+    
+    rope *r2 = rope_copy(r);
+    check(r2, (char *)str->mem);
+    rope_free(r2);
+    
 //    printf("String contains '%s'\n", str->mem);
     
     test(rope_byte_count(r) == str->len);
@@ -273,6 +292,7 @@ void test_all() {
   test_delete_past_end_of_string();
   test_really_long_ascii_string();
   test_custom_allocator();
+  test_copy();
   test_random_edits();
   printf("Done!\n");
 }

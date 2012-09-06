@@ -75,6 +75,9 @@ rope *rope_new2(void *(*alloc)(size_t bytes),
 // r = rope_new(); rope_insert(r, 0, str);
 rope *rope_new_with_utf8(const uint8_t *str);
 
+// Make a copy of an existing rope
+rope *rope_copy(const rope *r);
+
 // Free the specified rope
 void rope_free(rope *r);
 

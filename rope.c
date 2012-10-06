@@ -29,6 +29,7 @@ rope *rope_new2(void *(*alloc)(size_t bytes),
   r->head.num_bytes = 0;
   r->head.nexts[0].node = NULL;
   r->head.nexts[0].skip_size = 0;
+//  r->head.nexts[0].ucs_size = 0;
   return r;
 }
 
@@ -53,20 +54,20 @@ rope *rope_copy(const rope *other) {
 
   for (int i = 0; i < other->head.height; i++) {
     nodes[i] = &r->head;
-    r->head.nexts[i].node = NULL;
-    r->head.nexts[i].skip_size = other->head.nexts[i].skip_size;
+    // non-NULL next pointers will be rewritten below.
+    r->head.nexts[i] = other->head.nexts[i];
   }
   
   for (rope_node *n = other->head.nexts[0].node; n != NULL; n = n->nexts[0].node) {
     // I wonder if it would be faster if we took this opportunity to rebalance the node list..?
     size_t h = n->height;
-    rope_node *n2 = (rope_node *)r->alloc(sizeof(rope_node) + h * sizeof(rope_next_node));
+    rope_node *n2 = (rope_node *)r->alloc(sizeof(rope_node) + h * sizeof(rope_skip_node));
     
     // Would it be faster to just *n2 = *n; ?
     n2->num_bytes = n->num_bytes;
     n2->height = h;
     memcpy(n2->str, n->str, n->num_bytes);
-    memcpy(n2->nexts, n->nexts, h * sizeof(rope_next_node));
+    memcpy(n2->nexts, n->nexts, h * sizeof(rope_skip_node));
     
     for (int i = 0; i < h; i++) {
       nodes[i]->nexts[i].node = n2;
@@ -158,7 +159,7 @@ static uint8_t random_height() {
 
 // Figure out how many bytes to allocate for a node with the specified height.
 static size_t node_size(uint8_t height) {
-  return sizeof(rope_node) + height * sizeof(rope_next_node);
+  return sizeof(rope_node) + height * sizeof(rope_skip_node);
 }
 
 // Allocate and return a new node. The new node will be full of junk, except
@@ -289,7 +290,7 @@ static void insert_at(rope *r, size_t pos, rope_iter *iter,
   // Fill in the new node's nexts array.
   int i;
   for (i = 0; i < new_height; i++) {
-    rope_next_node *prev_skip = &iter->nodes[i]->nexts[i];
+    rope_skip_node *prev_skip = &iter->nodes[i]->nexts[i];
     new_node->nexts[i].node = prev_skip->node;
     new_node->nexts[i].skip_size = num_chars + prev_skip->skip_size - iter->tree_offsets[i];
 
@@ -497,7 +498,7 @@ void _rope_check(rope *r) {
   assert(r->head.height); // Even empty ropes have a height of 1.
   assert(r->num_bytes >= r->num_chars);
   
-  rope_next_node skip_over = r->head.nexts[r->head.height - 1];
+  rope_skip_node skip_over = r->head.nexts[r->head.height - 1];
   assert(skip_over.skip_size == r->num_chars);
   assert(skip_over.node == NULL);
   

@@ -40,10 +40,10 @@ typedef struct {
   // exactly _here_ in the struct.
   struct rope_node_t *node;
 
-  //size_t lines;
-  //size_t tombs;
-
-} rope_next_node;
+  // The number of ucs characters contained, if it was stored using ucs-2.
+//  size_t ucs_size;
+  
+} rope_skip_node;
 
 typedef struct rope_node_t {
   uint8_t str[ROPE_NODE_STR_SIZE];
@@ -55,10 +55,7 @@ typedef struct rope_node_t {
   // Each height is 1/2 as likely as the height before. The minimum height is 1.
   uint8_t height;
   
-  // unused for now - should be useful for object pools.
-  //uint8_t height_capacity;
-  
-  rope_next_node nexts[];
+  rope_skip_node nexts[];
 } rope_node;
 
 typedef struct {

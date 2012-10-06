@@ -92,6 +92,26 @@ static void test_empty_rope_has_no_content() {
   rope_free(r);
 }
 
+static void test_insert_at_location() {
+  rope *r = rope_new();
+  
+  rope_insert(r, 0, (uint8_t *)"AAA");
+  check(r, "AAA");
+  
+  rope_insert(r, 0, (uint8_t *)"BBB");
+  check(r, "BBBAAA");
+
+  rope_insert(r, 6, (uint8_t *)"CCC");
+  check(r, "BBBAAACCC");
+
+  rope_insert(r, 5, (uint8_t *)"DDD");
+  check(r, "BBBAADDDACCC");
+  
+  test(rope_char_count(r) == 12);
+  
+  rope_free(r);
+}
+
 // A rope initialized with a string has that string as its content
 static void test_new_string_has_content() {
   rope *r = rope_new_with_utf8((uint8_t *)"Hi there");
@@ -107,26 +127,6 @@ static void test_new_string_has_content() {
   rope_insert(r, 2, (uint8_t *)"𝕐𝕆𝌀");
   check(r, "κό𝕐𝕆𝌀σμε");
   test(rope_char_count(r) == 8);
-  rope_free(r);
-}
-
-static void test_insert_at_location() {
-  rope *r = rope_new();
-
-  rope_insert(r, 0, (uint8_t *)"AAA");
-  check(r, "AAA");
-
-  rope_insert(r, 0, (uint8_t *)"BBB");
-  check(r, "BBBAAA");
-
-  rope_insert(r, 6, (uint8_t *)"CCC");
-  check(r, "BBBAAACCC");
-
-  rope_insert(r, 5, (uint8_t *)"DDD");
-  check(r, "BBBAADDDACCC");
-  
-  test(rope_char_count(r) == 12);
-
   rope_free(r);
 }
 
@@ -227,6 +227,8 @@ static void test_copy() {
   rope_insert(r1, 0, (uint8_t *)"Eureka!");
   r2 = rope_copy(r1);
   check(r2, "Eureka!");
+  
+  rope_free(r1);
   rope_free(r2);
 }
 
@@ -286,8 +288,8 @@ static void test_random_edits() {
 void test_all() {
   printf("Running tests...\n");
   test_empty_rope_has_no_content();
-  test_new_string_has_content();
   test_insert_at_location();
+  test_new_string_has_content();
   test_delete_at_location();
   test_delete_past_end_of_string();
   test_really_long_ascii_string();

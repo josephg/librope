@@ -21,8 +21,12 @@
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
 #define ROPE_NODE_STR_SIZE 138
+
 // The likelyhood (%) a node will have height (n+1) instead of n
 #define ROPE_BIAS 25
+
+// The rope will stop being efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
+#define ROPE_MAX_HEIGHT 60
 
 struct rope_node_t;
 
@@ -36,27 +40,40 @@ typedef struct {
   // exactly _here_ in the struct.
   struct rope_node_t *node;
 
-  size_t lines;
-  size_t tombs;
+  //size_t lines;
+  //size_t tombs;
 
 } rope_next_node;
 
+typedef struct rope_node_t {
+  uint8_t str[ROPE_NODE_STR_SIZE];
+
+  // The number of bytes in str in use
+  uint16_t num_bytes;
+  
+  // This is the number of elements allocated in nexts.
+  // Each height is 1/2 as likely as the height before. The minimum height is 1.
+  uint8_t height;
+  
+  // unused for now - should be useful for object pools.
+  //uint8_t height_capacity;
+  
+  rope_next_node nexts[];
+} rope_node;
+
 typedef struct {
-  // The total number of characters in the list.
+  // The total number of characters in the rope.
   size_t num_chars;
   
-  // The total number of bytes used by the characters in the list.
+  // The total number of bytes which the characters in the rope take up.
   size_t num_bytes;
-  
-  // An array of the first nodes in the list at the given height.
-  rope_next_node *heads;
-
-  uint8_t height;
-  uint8_t height_capacity;
   
   void *(*alloc)(size_t bytes);
   void *(*realloc)(void *ptr, size_t newsize);
   void (*free)(void *ptr);
+
+  // The first node exists inline in the rope structure itself.
+  rope_node head;
 } rope;
 
 #ifdef __cplusplus

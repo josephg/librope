@@ -143,7 +143,7 @@
 		FD5D7C1C15E1DBAD00F847DF /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0440;
+				LastUpgradeCheck = 0450;
 				ORGANIZATIONNAME = "Joseph Gentle";
 			};
 			buildConfigurationList = FD5D7C1F15E1DBAD00F847DF /* Build configuration list for PBXProject "librope" */;
@@ -237,6 +237,7 @@
 		FD5D7C2A15E1DBAD00F847DF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -245,6 +246,7 @@
 		FD5D7C2B15E1DBAD00F847DF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};

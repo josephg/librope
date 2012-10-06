@@ -11,49 +11,29 @@
 #include <assert.h>
 #include "rope.h"
 
-typedef struct rope_node_t {
-  uint8_t str[ROPE_NODE_STR_SIZE];
-
-  // The number of bytes in str in use
-  uint16_t num_bytes;
-  
-  // This is the number of elements allocated in nexts.
-  // Each height is 1/2 as likely as the height before. The minimum height is 1.
-  uint8_t height;
-  
-  // unused for now - should be useful for object pools.
-  //uint8_t height_capacity;
-  
-  rope_next_node nexts[];
-} rope_node;
+// The number of bytes the rope head structure takes up
+static const size_t ROPE_SIZE = sizeof(rope) + sizeof(rope_node) * ROPE_MAX_HEIGHT;
 
 // Create a new rope with no contents
-rope *rope_new() {
-  rope *r = (rope *)calloc(1, sizeof(rope));
-  r->height = 0;
-  r->height_capacity = 10;
-  r->heads = (rope_next_node *)malloc(sizeof(rope_next_node) * r->height_capacity);
-  
-  r->alloc = malloc;
-  r->realloc = realloc;
-  r->free = free;
-  return r;
-}
-
 rope *rope_new2(void *(*alloc)(size_t bytes),
                 void *(*realloc)(void *ptr, size_t newsize),
                 void (*free)(void *ptr)) {
-  rope *r = (rope *)alloc(sizeof(rope));
+  rope *r = (rope *)alloc(ROPE_SIZE);
   r->num_chars = r->num_bytes = 0;
-  
-  r->height = 0;
-  r->height_capacity = 10;
-  r->heads = (rope_next_node *)alloc(sizeof(rope_next_node) * r->height_capacity);
   
   r->alloc = alloc;
   r->realloc = realloc;
   r->free = free;
+  
+  r->head.height = 1;
+  r->head.num_bytes = 0;
+  r->head.nexts[0].node = NULL;
+  r->head.nexts[0].skip_size = 0;
   return r;
+}
+
+rope *rope_new() {
+  return rope_new2(malloc, realloc, free);
 }
 
 // Create a new rope containing the specified string
@@ -64,22 +44,21 @@ rope *rope_new_with_utf8(const uint8_t *str) {
 }
 
 rope *rope_copy(const rope *other) {
-  rope *r = (rope *)other->alloc(sizeof(rope));
+  rope *r = (rope *)other->alloc(ROPE_SIZE);
   
-  // Just copy most of the head's data.
+  // Just copy most of the head's data. Note this won't copy the nexts list in head.
   *r = *other;
-  r->heads = (rope_next_node *)r->alloc(sizeof(rope_next_node) * r->height_capacity);
-  memcpy(r->heads, other->heads, sizeof(rope_next_node) * r->height);
+  
+  rope_node *nodes[ROPE_MAX_HEIGHT];
 
-  if (r->height == 0) {
-    return r;
+  for (int i = 0; i < other->head.height; i++) {
+    nodes[i] = &r->head;
+    r->head.nexts[i].node = NULL;
+    r->head.nexts[i].skip_size = other->head.nexts[i].skip_size;
   }
   
-  rope_node *nodes[UINT8_MAX] = {};
-  
-  for (rope_node *n = other->heads[0].node; n != NULL; n = n->nexts[0].node) {
-    // I wonder if it would be faster if we took this opportunity to rebalance
-    // the node list..? Eh.
+  for (rope_node *n = other->head.nexts[0].node; n != NULL; n = n->nexts[0].node) {
+    // I wonder if it would be faster if we took this opportunity to rebalance the node list..?
     size_t h = n->height;
     rope_node *n2 = (rope_node *)r->alloc(sizeof(rope_node) + h * sizeof(rope_next_node));
     
@@ -90,12 +69,8 @@ rope *rope_copy(const rope *other) {
     memcpy(n2->nexts, n->nexts, h * sizeof(rope_next_node));
     
     for (int i = 0; i < h; i++) {
-      if (nodes[i] == NULL) {
-        nodes[i] = r->heads[i].node = n2;
-      } else {
-        nodes[i]->nexts[i].node = n2;
-        nodes[i] = n2;
-      }
+      nodes[i]->nexts[i].node = n2;
+      nodes[i] = n2;
     }
   }
   
@@ -107,14 +82,11 @@ void rope_free(rope *r) {
   assert(r);
   rope_node *next;
   
-  if (r->height > 0) {
-    for (rope_node *n = r->heads[0].node; n != NULL; n = next) {
-      next = n->nexts[0].node;
-      r->free(n);
-    }
+  for (rope_node *n = r->head.nexts[0].node; n != NULL; n = next) {
+    next = n->nexts[0].node;
+    r->free(n);
   }
   
-  r->free(r->heads);
   r->free(r);
 }
 
@@ -130,7 +102,7 @@ uint8_t *rope_createcstr(rope *r, size_t *len) {
   }
   
   uint8_t *p = bytes;
-  for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
+  for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     memcpy(p, n->str, n->num_bytes);
     p += n->num_bytes;
   }
@@ -175,7 +147,9 @@ static uint8_t random_height() {
 
   uint8_t height = 1;
   
-  while(height < UINT8_MAX && (random() % 100) < ROPE_BIAS) {
+  // The root node's height is the height of the largest node + 1, so the largest
+  // node can only have ROPE_MAX_HEIGHT - 1.
+  while(height < (ROPE_MAX_HEIGHT - 1) && (random() % 100) < ROPE_BIAS) {
     height++;
   }
   
@@ -230,51 +204,41 @@ static size_t strlen_utf8(const uint8_t *str) {
   return i;
 }
 
+typedef struct {
+  // The number of nodes to skip in the current node
+  size_t offset;
+
+  // The number of nodes the iterator skips from the start of the rope
+  size_t tree_offsets[ROPE_MAX_HEIGHT];
+
+  // The node which points past the current position
+  rope_node *nodes[ROPE_MAX_HEIGHT];
+} rope_iter;
+
 // Internal function for navigating to a particular character offset in the rope.
 // The function returns the list of nodes which point past the position, as well as
 // offsets of how far into their character lists the specified characters are.
-static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node *nodes[], size_t *tree_offsets) {
-  rope_node *e = NULL;
-  
-  int height = r->height;
+static rope_node *go_to_node(rope *r, size_t pos, rope_iter *iter) {
+  assert(pos <= r->num_chars);
+
+  rope_node *e = &r->head;
+  int height = r->head.height - 1;
+
   // Offset stores how characters we still need to skip in the current node.
   size_t offset = pos;
   size_t skip;
-
-  while (height--) {
-    if (offset > (skip = r->heads[height].skip_size)) {
-
-      offset -= skip;
-      e = r->heads[height].node;
-
-      break;
-    } else {
-      if (tree_offsets) {
-        tree_offsets[height] = offset;
-      }
-      nodes[height] = NULL;
-    }
-  }
-  
-  // The list is empty or offset is 0.
-  if (e == NULL) {
-    *offset_out = offset;
-    return e;
-  }
 
   while (true) {
     skip = e->nexts[height].skip_size;
     if (offset > skip) {
       // Go right.
       offset -= skip;
-      assert(e->num_bytes);
+      assert(e == &r->head || e->num_bytes);
       e = e->nexts[height].node;
     } else {
       // Go down.
-      if (tree_offsets) {
-        tree_offsets[height] = offset;
-      }
-      nodes[height] = e;
+      iter->tree_offsets[height] = offset;
+      iter->nodes[height] = e;
 
       if (height == 0) {
         break;
@@ -285,72 +249,61 @@ static rope_node *go_to_node(rope *r, size_t pos, size_t *offset_out, rope_node 
   }
   
   assert(offset <= ROPE_NODE_STR_SIZE);
-  
-  *offset_out = offset;
+  iter->offset = offset;
   return e;
 }
 
+// This could pass in an iter* instead of the node array..?
 static void update_offset_list(rope *r, rope_node *nodes[], size_t amt) {
-  for (int i = 0; i < r->height; i++) {
-    if (nodes[i]) {
-      nodes[i]->nexts[i].skip_size += amt;
-    } else {
-      r->heads[i].skip_size += amt;
-    }
+  for (int i = 0; i < r->head.height; i++) {
+    nodes[i]->nexts[i].skip_size += amt;
   }
 }
 
 // Internal method of rope_insert.
-static void insert_at(rope *r, size_t pos, const uint8_t *str,
-    size_t num_bytes, size_t num_chars, rope_node *nodes[], size_t tree_offsets[]) {
-  // This describes how many of the nodes[] and tree_offsets[] arrays are filled in.
-  uint8_t max_height = r->height;
+// This function creates a new node in the rope at the specified position and fills it with the
+// passed string.
+static void insert_at(rope *r, size_t pos, rope_iter *iter,
+    const uint8_t *str, size_t num_bytes, size_t num_chars) {
+  // This describes how many of the nodes[] and tree_offsets[] arrays in the iter
+  // are filled in.
+  uint8_t max_height = r->head.height;
   uint8_t new_height = random_height();
   rope_node *new_node = alloc_node(r, new_height);
   new_node->num_bytes = num_bytes;
   memcpy(new_node->str, str, num_bytes);
-  
-  // Ensure the rope has enough capacity to store the next pointers to the new object.
-  if (new_height > max_height) {
-    r->height = new_height;
-    if (r->height > r->height_capacity) {
-      do {
-        r->height_capacity *= 2;
-      } while (r->height_capacity < r->height);
-      r->heads = (rope_next_node *)r->realloc(r->heads, sizeof(rope_next_node) * r->height_capacity);
-    }
-  }
 
+  assert(new_height < ROPE_MAX_HEIGHT);
+  
+  // Max height (the rope's head's height) must be 1+ the height of the largest node.
+  while (max_height <= new_height) {
+    r->head.height++;
+    r->head.nexts[max_height].node = NULL;
+    r->head.nexts[max_height].skip_size = r->num_chars;
+    
+    iter->nodes[max_height] = &r->head;
+    iter->tree_offsets[max_height] = pos;
+    max_height++;
+  }
+  
   // Fill in the new node's nexts array.
   int i;
   for (i = 0; i < new_height; i++) {
-    if (i < max_height) {
-      rope_next_node *prev_node = (nodes[i] ? &nodes[i]->nexts[i] : &r->heads[i]);
-      new_node->nexts[i].node = prev_node->node;
-      new_node->nexts[i].skip_size = num_chars + prev_node->skip_size - tree_offsets[i];
+    rope_next_node *prev_skip = &iter->nodes[i]->nexts[i];
+    new_node->nexts[i].node = prev_skip->node;
+    new_node->nexts[i].skip_size = num_chars + prev_skip->skip_size - iter->tree_offsets[i];
 
-      prev_node->node = new_node;
-      prev_node->skip_size = tree_offsets[i];
-    } else {
-      // Edit the head node instead of editing the parent listed in nodes.
-      new_node->nexts[i].node = NULL;
-      new_node->nexts[i].skip_size = r->num_chars - pos + num_chars;
-      
-      r->heads[i].node = new_node;
-      r->heads[i].skip_size = pos;
-    }
+    prev_skip->node = new_node;
+    prev_skip->skip_size = iter->tree_offsets[i];
     
-    nodes[i] = new_node;
-    tree_offsets[i] = num_chars;
+    // & move the iterator to the end of the newly inserted node.
+    iter->nodes[i] = new_node;
+    iter->tree_offsets[i] = num_chars;
   }
   
   for (; i < max_height; i++) {
-    if (nodes[i]) {
-      nodes[i]->nexts[i].skip_size += num_chars;
-    } else {
-      r->heads[i].skip_size += num_chars;
-    }
-    tree_offsets[i] += num_chars;
+    iter->nodes[i]->nexts[i].skip_size += num_chars;
+    iter->tree_offsets[i] += num_chars;
   }
   
   r->num_chars += num_chars;
@@ -365,58 +318,46 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   _rope_check(r);
 #endif
   pos = MIN(pos, r->num_chars);
-
-  // There's a good chance we'll have to rewrite a bunch of next pointers and a bunch
-  // of offsets. This variable will store pointers to the elements which need to
-  // be changed.
-  rope_node *nodes[UINT8_MAX];
-  size_t tree_offsets[UINT8_MAX];
-
-  // This is the number of characters to skip in the current node.
-  size_t offset;
   
+  rope_iter iter;
   // First we need to search for the node where we'll insert the string.
-  rope_node *e = go_to_node(r, pos, &offset, nodes, tree_offsets);
-  
+  rope_node *e = go_to_node(r, pos, &iter);
   // offset contains how far (in characters) into the current element to skip.
   // Figure out how much that is in bytes.
   size_t offset_bytes = 0;
-  if (e && offset) {
-    assert(offset <= e->num_bytes);
-    offset_bytes = count_bytes_in_chars(e->str, offset);
+  if (iter.offset) {
+    assert(iter.offset <= e->nexts[0].skip_size);
+    offset_bytes = count_bytes_in_chars(e->str, iter.offset);
   }
   
   // Maybe we can insert the characters into the current node?
   size_t num_inserted_bytes = strlen((char *)str);
 
   // Can we insert into the current node?
-  bool insert_here = e && e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
+  bool insert_here = e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
   
   // Can we insert into the subsequent node?
-  bool insert_next = false;
   rope_node *next = NULL;
-  if (!insert_here) {
-    next = e ? e->nexts[0].node : (r->num_chars ? r->heads[0].node : NULL);
+  if (!insert_here && offset_bytes == e->num_bytes) {
+    next = e->nexts[0].node;
     // We can insert into the subsequent node if:
     // - We can't insert into the current node
     // - There _is_ a next node to insert into
     // - The insert would be at the start of the next node
     // - There's room in the next node
-    insert_next = next
-        && (e == NULL || offset_bytes == e->num_bytes)
-        && next->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
-  }
-  
-  if (insert_here || insert_next) {
-    if (insert_next) {
-      offset = offset_bytes = 0;
+    if (next && next->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE) {
+      iter.offset = offset_bytes = 0;
       for (int i = 0; i < next->height; i++) {
-        nodes[i] = next;
-        // tree offset nodes not used.
+        iter.nodes[i] = next;
+        // tree offset nodes will not be used.
       }
       e = next;
+
+      insert_here = true;
     }
-    
+  }
+  
+  if (insert_here) {
     // First move the current bytes later on in the string.
     if (offset_bytes < e->num_bytes) {
       memmove(&e->str[offset_bytes + num_inserted_bytes],
@@ -433,29 +374,27 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     r->num_chars += num_inserted_chars;
     
     // .... aaaand update all the offset amounts.
-    update_offset_list(r, nodes, num_inserted_chars);
+    update_offset_list(r, iter.nodes, num_inserted_chars);
   } else {
     // There isn't room. We'll need to add at least one new node to the rope.
     
     // If we're not at the end of the current node, we'll need to remove
     // the end of the current node's data and reinsert it later.
-    size_t num_end_bytes = 0, num_end_chars;
-    if (e) {
-      num_end_bytes = e->num_bytes - offset_bytes;
+    size_t num_end_chars, num_end_bytes = e->num_bytes - offset_bytes;
+    if (num_end_bytes) {
+      // We'll pretend like the character have been deleted from the node, while leaving
+      // the bytes themselves there (for later).
       e->num_bytes = offset_bytes;
-      if (num_end_bytes) {
-        // Count out characters.
-        num_end_chars = e->nexts[0].skip_size - offset;
-        update_offset_list(r, nodes, -num_end_chars);
-        
-        r->num_chars -= num_end_chars;
-        r->num_bytes -= num_end_bytes;
-      }
+      num_end_chars = e->nexts[0].skip_size - iter.offset;
+      update_offset_list(r, iter.nodes, -num_end_chars);
+      
+      r->num_chars -= num_end_chars;
+      r->num_bytes -= num_end_bytes;
     }
     
-    // Now, we insert new node[s] containing the data. The data must
-    // be broken into pieces of with a maximum size of ROPE_NODE_STR_SIZE.
-    // Node boundaries do not occur in the middle of a utf8 codepoint.
+    // Now we insert new nodes containing the new character data. The data must be broken into
+    // pieces of with a maximum size of ROPE_NODE_STR_SIZE. Node boundaries must not occur in the
+    // middle of a utf8 codepoint.
     size_t str_offset = 0;
     while (str_offset < num_inserted_bytes) {
       size_t new_node_bytes = 0;
@@ -471,16 +410,16 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
         }
       }
       
-      insert_at(r, pos, &str[str_offset], new_node_bytes, new_node_chars, nodes, tree_offsets);
+      insert_at(r, pos, &iter, &str[str_offset], new_node_bytes, new_node_chars);
       pos += new_node_chars;
       str_offset += new_node_bytes;
     }
     
     if (num_end_bytes) {
-      insert_at(r, pos, &e->str[offset_bytes], num_end_bytes, num_end_chars, nodes, tree_offsets);
+      insert_at(r, pos, &iter, &e->str[offset_bytes], num_end_bytes, num_end_chars);
     }
   }
-  
+
 #ifdef DEBUG
   _rope_check(r);
 #endif
@@ -495,31 +434,28 @@ void rope_del(rope *r, size_t pos, size_t length) {
   assert(r);
   pos = MIN(pos, r->num_chars);
   length = MIN(length, r->num_chars - pos);
-  
-  rope_node *nodes[UINT8_MAX];
-  
-  // the number of characters to skip in the current node.
-  size_t offset;
+
+  rope_iter iter;
   
   // Search for the node where we'll insert the string.
-  rope_node *e = go_to_node(r, pos, &offset, nodes, NULL);
+  rope_node *e = go_to_node(r, pos, &iter);
   
   r->num_chars -= length;
   
   while (length) {
-    if (e == NULL || offset == e->nexts[0].skip_size) {
-      // Skip this node.
-      e = (nodes[0] ? nodes[0]->nexts[0] : r->heads[0]).node;
-      offset = 0;
+    if (iter.offset == e->nexts[0].skip_size) {
+      // End of the current node. Skip to the start of the next one.
+      e = iter.nodes[0]->nexts[0].node;
+      iter.offset = 0;
     }
     
     size_t num_chars = e->nexts[0].skip_size;
-    size_t removed = MIN(length, num_chars - offset);
+    size_t removed = MIN(length, num_chars - iter.offset);
     
     int i;
-    if (removed < num_chars) {
+    if (removed < num_chars || e == &r->head) {
       // Just trim this node down to size.
-      size_t leading_bytes = count_bytes_in_chars(e->str, offset);
+      size_t leading_bytes = count_bytes_in_chars(e->str, iter.offset);
       size_t removed_bytes = count_bytes_in_chars(e->str + leading_bytes, removed);
       size_t trailing_bytes = e->num_bytes - leading_bytes - removed_bytes;
       
@@ -533,11 +469,10 @@ void rope_del(rope *r, size_t pos, size_t length) {
         e->nexts[i].skip_size -= removed;
       }
     } else {
-      // Remove the node.
+      // Remove the node from the list
       for (i = 0; i < e->height; i++) {
-        rope_next_node *next_node = (nodes[i] ? &nodes[i]->nexts[i] : &r->heads[i]);
-        next_node->node = e->nexts[i].node;
-        next_node->skip_size += e->nexts[i].skip_size - removed;
+        iter.nodes[i]->nexts[i].node = e->nexts[i].node;
+        iter.nodes[i]->nexts[i].skip_size += e->nexts[i].skip_size - removed;
       }
       
       r->num_bytes -= e->num_bytes;
@@ -547,12 +482,8 @@ void rope_del(rope *r, size_t pos, size_t length) {
       e = next;
     }
     
-    for (; i < r->height; i++) {
-      if (nodes[i]) {
-        nodes[i]->nexts[i].skip_size -= removed;
-      } else {
-        r->heads[i].skip_size -= removed;
-      }
+    for (; i < r->head.height; i++) {
+      iter.nodes[i]->nexts[i].skip_size -= removed;
     }
     
     length -= removed;
@@ -563,22 +494,44 @@ void rope_del(rope *r, size_t pos, size_t length) {
 }
 
 void _rope_check(rope *r) {
-  if (r->height == 0) {
-    assert(r->num_bytes == 0);
-    assert(r->num_chars == 0);
-    return;
-  }
-  
+  assert(r->head.height); // Even empty ropes have a height of 1.
   assert(r->num_bytes >= r->num_chars);
+  
+  rope_next_node skip_over = r->head.nexts[r->head.height - 1];
+  assert(skip_over.skip_size == r->num_chars);
+  assert(skip_over.node == NULL);
   
   size_t num_bytes = 0;
   size_t num_chars = 0;
 
-  for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
-    assert(n->num_bytes);
+  rope_iter iter;
+  iter.offset = 0;
+  for (int i = 0; i < r->head.height; i++) {
+    iter.nodes[i] = &r->head;
+    
+    // The tree offsets here are used to store the total distance travelled from the start
+    // of the rope.
+    iter.tree_offsets[i] = 0;
+  }
+  
+  for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
+    assert(n == &r->head || n->num_bytes);
+    assert(n->height <= ROPE_MAX_HEIGHT);
     assert(count_bytes_in_chars(n->str, n->nexts[0].skip_size) == n->num_bytes);
+    
+    for (int i = 0; i < n->height; i++) {
+      assert(iter.nodes[i] == n);
+      assert(iter.tree_offsets[i] == num_chars);
+      iter.nodes[i] = n->nexts[i].node;
+      iter.tree_offsets[i] += n->nexts[i].skip_size;
+    }
+    
     num_bytes += n->num_bytes;
     num_chars += n->nexts[0].skip_size;
+  }
+  
+  for (int i = 0; i < r->head.height; i++) {
+    assert(iter.nodes[i] == NULL);
   }
   
   assert(r->num_bytes == num_bytes);
@@ -588,16 +541,16 @@ void _rope_check(rope *r) {
 // For debugging.
 #include <stdio.h>
 void _rope_print(rope *r) {
-  printf("chars: %ld\tbytes: %ld\theight: %d\n", r->num_chars, r->num_bytes, r->height);
+  printf("chars: %ld\tbytes: %ld\theight: %d\n", r->num_chars, r->num_bytes, r->head.height);
 
   printf("HEAD");
-  for (int i = 0; i < r->height; i++) {
-    printf(" |%3ld ", r->heads[i].skip_size);
+  for (int i = 0; i < r->head.height; i++) {
+    printf(" |%3ld ", r->head.nexts[i].skip_size);
   }
   printf("\n");
   
   int num = 0;
-  for (rope_node *n = r->heads[0].node; n != NULL; n = n->nexts[0].node) {
+  for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     printf("%3d:", num++);
     for (int i = 0; i < n->height; i++) {
       printf(" |%3ld ", n->nexts[i].skip_size);

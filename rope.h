@@ -15,13 +15,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Whether or not the rope should support converting offsets to UCS-2 positions. This is useful
-// when interoperating with strings in JS, Objective-C and many other languages.
-// See http://josephg.com/post/31707645955/string-length-lies
+// Whether or not the rope should support converting UTF-8 character offsets to wchar array
+// positions. This is useful when interoperating with strings in JS, Objective-C and many other
+// languages. See http://josephg.com/post/31707645955/string-length-lies
 //
-// Adding UCS2 conversion support decreases performance by about 30%.
-#ifndef ROPE_UCS2
-#define ROPE_UCS2 1
+// Adding wchar conversion support decreases performance by about 30%.
+#ifndef ROPE_WCHAR
+#define ROPE_WCHAR 1
 #endif
 
 // These two magic values seem to be approximately optimal given the benchmark in
@@ -30,7 +30,7 @@
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
 #ifndef ROPE_NODE_STR_SIZE
-#if ROPE_UCS2
+#if ROPE_WCHAR
 #define ROPE_NODE_STR_SIZE 64
 #else
 #define ROPE_NODE_STR_SIZE 136
@@ -59,9 +59,9 @@ typedef struct {
   // exactly _here_ in the struct.
   struct rope_node_t *node;
 
-  // The number of ucs characters contained, if it was stored using ucs-2.
-#if ROPE_UCS2
-  size_t ucs_size;
+#if ROPE_WCHAR
+  // The number of wide characters contained in space.
+  size_t wchar_size;
 #endif
 } rope_skip_node;
 
@@ -135,20 +135,21 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
   
-#if ROPE_UCS2
-// Get the number of UCS2 characters in the rope
-size_t rope_ucs2_count(rope *r);
+#if ROPE_WCHAR
+// Get the number of wchar characters in the rope
+size_t rope_wchar_count(rope *r);
 
-// Insert the given utf8 string into the rope at the specified UCS2 position. This is compatible
+// Insert the given utf8 string into the rope at the specified wchar position. This is compatible
 // with NSString, Javascript, etc. The string still needs to be passed in using UTF-8.
 //
 // Returns the insertion position in characters.
-size_t rope_insert_at_ucs2(rope *r, size_t ucs2_pos, const uint8_t *utf8_str);
+size_t rope_insert_at_wchar(rope *r, size_t wchar_pos, const uint8_t *utf8_str);
   
-// Delete ucs2_num UCS2 characters at the specified position.
+// Delete wchar_num wide characters at the specified wchar position offset.
 // Returns the deletion position in characters. *char_len_out is set to the deletion length, in
 // chars if its not null.
-size_t rope_del_at_ucs2(rope *r, size_t ucs2_pos, size_t ucs2_num, size_t *char_len_out);
+// If the range is inside character boundaries, behaviour is undefined.
+size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *char_len_out);
 #endif
 
 

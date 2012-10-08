@@ -29,13 +29,13 @@
 
 /* Begin PBXFileReference section */
 		FD5D7C2515E1DBAD00F847DF /* librope.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = librope.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		FD5D7C3215E1DC4A00F847DF /* rope.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rope.c; sourceTree = "<group>"; };
-		FD5D7C3515E1DC5300F847DF /* rope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rope.h; sourceTree = "<group>"; };
+		FD5D7C3215E1DC4A00F847DF /* rope.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; lineEnding = 0; path = rope.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
+		FD5D7C3515E1DC5300F847DF /* rope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = rope.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		FD5D7C3C15E1DCA100F847DF /* tests */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tests; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD967CBD15ECBF8600B36CA1 /* benchmark.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = benchmark.c; sourceTree = "<group>"; };
 		FD967CBE15ECBF8600B36CA1 /* slowstring.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = slowstring.c; sourceTree = "<group>"; };
 		FD967CBF15ECBF8600B36CA1 /* slowstring.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = slowstring.h; sourceTree = "<group>"; };
-		FD967CC015ECBF8600B36CA1 /* tests.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = tests.c; sourceTree = "<group>"; };
+		FD967CC015ECBF8600B36CA1 /* tests.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; lineEnding = 0; path = tests.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
 		FD967CC115ECBF8600B36CA1 /* tests.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tests.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 

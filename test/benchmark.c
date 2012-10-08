@@ -98,7 +98,8 @@ struct rope_implementation {
 };
 
 void benchmark() {
-  printf("Benchmarking... (node size = %d, ucs support = %d)\n", ROPE_NODE_STR_SIZE, ROPE_UCS2);
+  printf("Benchmarking... (node size = %d, wchar support = %d)\n",
+         ROPE_NODE_STR_SIZE, ROPE_WCHAR);
   
   long iterations = 20000000;
 //  long iterations = 1000000;

@@ -98,7 +98,7 @@ struct rope_implementation {
 };
 
 void benchmark() {
-  printf("Benchmarking...\n");
+  printf("Benchmarking... (node size = %d, ucs support = %d)\n", ROPE_NODE_STR_SIZE, ROPE_UCS2);
   
   long iterations = 20000000;
 //  long iterations = 1000000;
@@ -123,33 +123,36 @@ void benchmark() {
 
 //  for (int t = 0; t < sizeof(types) / sizeof(types[0]); t++) {
   for (int t = 0; t < 1; t++) {
-    printf("benchmarking %s\n", types[t].name);
-    void *r = types[t].create();
-    gettimeofday(&start, NULL);
-    
-    for (long i = 0; i < iterations; i++) {
-      if (types[t].num_chars(r) == 0 || i % 20 > 0) {
-        // insert. (Inserts are way more common in practice than deletes.)
-        uint8_t *str = strings[i % 100];
-        types[t].insert(r, rvals[i] % (types[t].num_chars(r) + 1), str);
-      } else {
-        size_t pos = rvals[i] % types[t].num_chars(r);
-        size_t length = MIN(types[t].num_chars(r) - pos, 1 + (~rvals[i]) % 53);
-        types[t].del(r, pos, length);
+    for (int i = 0; i < 5; i++) {
+      printf("benchmarking %s\n", types[t].name);
+      void *r = types[t].create();
+
+      gettimeofday(&start, NULL);
+      
+      for (long i = 0; i < iterations; i++) {
+        if (types[t].num_chars(r) == 0 || i % 20 > 0) {
+          // insert. (Inserts are way more common in practice than deletes.)
+          uint8_t *str = strings[i % 100];
+          types[t].insert(r, rvals[i] % (types[t].num_chars(r) + 1), str);
+        } else {
+          size_t pos = rvals[i] % types[t].num_chars(r);
+          size_t length = MIN(types[t].num_chars(r) - pos, 1 + (~rvals[i]) % 53);
+          types[t].del(r, pos, length);
+        }
+        
+        //printf("%s\n", rope_createcstr(r, NULL));
       }
       
-      //printf("%s\n", rope_createcstr(r, NULL));
+      gettimeofday(&end, NULL);
+
+      double elapsedTime = end.tv_sec - start.tv_sec;
+      elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
+      printf("did %ld iterations in %f ms: %f Miter/sec\n",
+             iterations, elapsedTime * 1000, iterations / elapsedTime / 1000000);
+      printf("final string length: %zi\n", types[t].num_chars(r));
+      
+      types[t].destroy(r);
     }
-    
-    gettimeofday(&end, NULL);
-
-    double elapsedTime = end.tv_sec - start.tv_sec;
-    elapsedTime += (end.tv_usec - start.tv_usec) / 1e6;
-    printf("did %ld iterations in %f ms: %f Miter/sec\n",
-           iterations, elapsedTime * 1000, iterations / elapsedTime / 1000000);
-    printf("final string length: %zi\n", types[t].num_chars(r));
-
-    types[t].destroy(r);
   }
   
   for (int i = 0; i < 100; i++) {

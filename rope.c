@@ -29,7 +29,9 @@ rope *rope_new2(void *(*alloc)(size_t bytes),
   r->head.num_bytes = 0;
   r->head.nexts[0].node = NULL;
   r->head.nexts[0].skip_size = 0;
-//  r->head.nexts[0].ucs_size = 0;
+#if ROPE_UCS2
+  r->head.nexts[0].ucs_size = 0;
+#endif
   return r;
 }
 
@@ -130,6 +132,13 @@ size_t rope_byte_count(rope *r) {
   return r->num_bytes;
 }
 
+#if ROPE_UCS2
+size_t rope_ucs2_count(rope *r) {
+  assert(r);
+  return r->head.nexts[r->head.height - 1].ucs_size;
+}
+#endif
+
 #define MIN(x,y) ((x) > (y) ? (y) : (x))
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 
@@ -194,6 +203,32 @@ static size_t count_bytes_in_chars(const uint8_t *str, size_t num_chars) {
   return p - str;
 }
 
+#if ROPE_UCS2
+
+#define NEEDS_TWO_WCHARS(x) (((x) & 0xf0) == 0xf0)
+
+static size_t count_ucs2_in_chars(const uint8_t *str, size_t num_chars) {
+  size_t ucs2 = 0;
+  for (unsigned int i = 0; i < num_chars; i++) {
+    ucs2 += 1 + NEEDS_TWO_WCHARS(*str);
+    str += codepoint_size(*str);
+  }
+  return ucs2;
+}
+
+static size_t count_chars_in_ucs2(const uint8_t *str, size_t num_ucs2) {
+  size_t chars = num_ucs2;
+  for (unsigned int i = 0; i < num_ucs2; i++) {
+    if (NEEDS_TWO_WCHARS(*str)) {
+      chars--;
+      i++;
+    }
+    str += codepoint_size(*str);
+  }
+  return chars;
+}
+#endif
+
 // Count the number of characters in a string.
 static size_t strlen_utf8(const uint8_t *str) {
   const uint8_t *p = str;
@@ -206,40 +241,45 @@ static size_t strlen_utf8(const uint8_t *str) {
 }
 
 typedef struct {
-  // The number of nodes to skip in the current node
-  size_t offset;
-
-  // The number of nodes the iterator skips from the start of the rope
-  size_t tree_offsets[ROPE_MAX_HEIGHT];
-
-  // The node which points past the current position
-  rope_node *nodes[ROPE_MAX_HEIGHT];
+  // This stores the previous node at each height, and the number of characters from the start of
+  // the previous node to the current iterator position.
+  rope_skip_node s[ROPE_MAX_HEIGHT];
 } rope_iter;
 
 // Internal function for navigating to a particular character offset in the rope.
 // The function returns the list of nodes which point past the position, as well as
 // offsets of how far into their character lists the specified characters are.
-static rope_node *go_to_node(rope *r, size_t pos, rope_iter *iter) {
-  assert(pos <= r->num_chars);
+static rope_node *iter_at_char_pos(rope *r, size_t char_pos, rope_iter *iter) {
+  assert(char_pos <= r->num_chars);
 
   rope_node *e = &r->head;
   int height = r->head.height - 1;
 
-  // Offset stores how characters we still need to skip in the current node.
-  size_t offset = pos;
+  // Offset stores how many characters we still need to skip in the current node.
+  size_t offset = char_pos;
   size_t skip;
+#if ROPE_UCS2
+  size_t ucs2_pos = 0; // Current UCS2 pos from the start of the rope.
+#endif
 
   while (true) {
     skip = e->nexts[height].skip_size;
     if (offset > skip) {
       // Go right.
-      offset -= skip;
       assert(e == &r->head || e->num_bytes);
+      
+      offset -= skip;
+#if ROPE_UCS2
+      ucs2_pos += e->nexts[height].ucs_size;
+#endif
       e = e->nexts[height].node;
     } else {
       // Go down.
-      iter->tree_offsets[height] = offset;
-      iter->nodes[height] = e;
+      iter->s[height].skip_size = offset;
+      iter->s[height].node = e;
+#if ROPE_UCS2
+      iter->s[height].ucs_size = ucs2_pos;
+#endif
 
       if (height == 0) {
         break;
@@ -249,25 +289,92 @@ static rope_node *go_to_node(rope *r, size_t pos, rope_iter *iter) {
     }
   }
   
+#if ROPE_UCS2
+  // For some reason, this is _REALLY SLOW_. Like, 5.5Mops/s -> 4Mops/s from this block of code.
+  ucs2_pos += count_ucs2_in_chars(e->str, offset);
+  
+  // The iterator has the UCS2 pos from the start of the whole string.
+  for (int i = 0; i < r->head.height; i++) {
+    iter->s[i].ucs_size = ucs2_pos - iter->s[i].ucs_size;
+  }
+#endif
+  
   assert(offset <= ROPE_NODE_STR_SIZE);
-  iter->offset = offset;
+  assert(iter->s[0].node == e);
   return e;
 }
 
-// This could pass in an iter* instead of the node array..?
-static void update_offset_list(rope *r, rope_node *nodes[], size_t amt) {
+#if ROPE_UCS2
+// Equivalent of iter_at_char_pos, but for ucs2 positions instead.
+static rope_node *iter_at_ucs2_pos(rope *r, size_t ucs2_pos, rope_iter *iter) {
+  int height = r->head.height - 1;
+  assert(ucs2_pos <= r->head.nexts[height].ucs_size);
+
+  rope_node *e = &r->head;
+
+  // Offset stores how many ucs2 characters we still need to skip in the current node.
+  size_t offset = ucs2_pos;
+  size_t skip;
+  size_t char_pos = 0; // Current char pos from the start of the rope.
+  
+  while (true) {
+    skip = e->nexts[height].ucs_size;
+    if (offset > skip) {
+      // Go right.
+      offset -= skip;
+      char_pos += e->nexts[height].skip_size;
+      e = e->nexts[height].node;
+    } else {
+      // Go down.
+      iter->s[height].skip_size = char_pos;
+      iter->s[height].node = e;
+      iter->s[height].ucs_size = offset;
+      
+      if (height == 0) {
+        break;
+      } else {
+        height--;
+      }
+    }
+  }
+
+  char_pos += count_chars_in_ucs2(e->str, offset);
+  
+  // The iterator has character positions from the start of the rope to the start of the node.
   for (int i = 0; i < r->head.height; i++) {
-    nodes[i]->nexts[i].skip_size += amt;
+    iter->s[i].skip_size = char_pos - iter->s[i].skip_size;
+  }
+  assert(e == iter->s[0].node);
+  return e;
+}
+#endif
+
+#if ROPE_UCS2
+static void update_offset_list(rope *r, rope_iter *iter, size_t num_chars, size_t num_ucs2) {
+  for (int i = 0; i < r->head.height; i++) {
+    iter->s[i].node->nexts[i].skip_size += num_chars;
+    iter->s[i].node->nexts[i].ucs_size += num_ucs2;
   }
 }
+#else
+static void update_offset_list(rope *r, rope_iter *iter, size_t num_chars) {
+  for (int i = 0; i < r->head.height; i++) {
+    iter->s[i].node->nexts[i].skip_size += num_chars;
+  }
+}
+#endif
+
 
 // Internal method of rope_insert.
 // This function creates a new node in the rope at the specified position and fills it with the
 // passed string.
-static void insert_at(rope *r, size_t pos, rope_iter *iter,
+static void insert_at(rope *r, rope_iter *iter,
     const uint8_t *str, size_t num_bytes, size_t num_chars) {
-  // This describes how many of the nodes[] and tree_offsets[] arrays in the iter
-  // are filled in.
+#if ROPE_UCS2
+  size_t num_ucs2 = count_ucs2_in_chars(str, num_chars);
+#endif
+  
+  // This describes how many levels of the iter are filled in.
   uint8_t max_height = r->head.height;
   uint8_t new_height = random_height();
   rope_node *new_node = alloc_node(r, new_height);
@@ -279,32 +386,41 @@ static void insert_at(rope *r, size_t pos, rope_iter *iter,
   // Max height (the rope's head's height) must be 1+ the height of the largest node.
   while (max_height <= new_height) {
     r->head.height++;
-    r->head.nexts[max_height].node = NULL;
-    r->head.nexts[max_height].skip_size = r->num_chars;
+    r->head.nexts[max_height] = r->head.nexts[max_height - 1];
     
-    iter->nodes[max_height] = &r->head;
-    iter->tree_offsets[max_height] = pos;
+    // This is the position (offset from the start) of the rope.
+    iter->s[max_height] = iter->s[max_height - 1];
     max_height++;
   }
-  
+
   // Fill in the new node's nexts array.
   int i;
   for (i = 0; i < new_height; i++) {
-    rope_skip_node *prev_skip = &iter->nodes[i]->nexts[i];
+    rope_skip_node *prev_skip = &iter->s[i].node->nexts[i];
     new_node->nexts[i].node = prev_skip->node;
-    new_node->nexts[i].skip_size = num_chars + prev_skip->skip_size - iter->tree_offsets[i];
+    new_node->nexts[i].skip_size = num_chars + prev_skip->skip_size - iter->s[i].skip_size;
+    
 
     prev_skip->node = new_node;
-    prev_skip->skip_size = iter->tree_offsets[i];
+    prev_skip->skip_size = iter->s[i].skip_size;
     
     // & move the iterator to the end of the newly inserted node.
-    iter->nodes[i] = new_node;
-    iter->tree_offsets[i] = num_chars;
+    iter->s[i].node = new_node;
+    iter->s[i].skip_size = num_chars;
+#if ROPE_UCS2
+    new_node->nexts[i].ucs_size = num_ucs2 + prev_skip->ucs_size - iter->s[i].ucs_size;
+    prev_skip->ucs_size = iter->s[i].ucs_size;
+    iter->s[i].ucs_size = num_ucs2;
+#endif
   }
   
   for (; i < max_height; i++) {
-    iter->nodes[i]->nexts[i].skip_size += num_chars;
-    iter->tree_offsets[i] += num_chars;
+    iter->s[i].node->nexts[i].skip_size += num_chars;
+    iter->s[i].skip_size += num_chars;
+#if ROPE_UCS2
+    iter->s[i].node->nexts[i].ucs_size += num_ucs2;
+    iter->s[i].ucs_size += num_ucs2;
+#endif
   }
   
   r->num_chars += num_chars;
@@ -312,23 +428,15 @@ static void insert_at(rope *r, size_t pos, rope_iter *iter,
 }
 
 // Insert the given utf8 string into the rope at the specified position.
-void rope_insert(rope *r, size_t pos, const uint8_t *str) {
-  assert(r);
-  assert(str);
-#ifdef DEBUG
-  _rope_check(r);
-#endif
-  pos = MIN(pos, r->num_chars);
-  
-  rope_iter iter;
-  // First we need to search for the node where we'll insert the string.
-  rope_node *e = go_to_node(r, pos, &iter);
-  // offset contains how far (in characters) into the current element to skip.
+static void rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, const uint8_t *str) {
+  // iter.offset contains how far (in characters) into the current element to skip.
   // Figure out how much that is in bytes.
   size_t offset_bytes = 0;
-  if (iter.offset) {
-    assert(iter.offset <= e->nexts[0].skip_size);
-    offset_bytes = count_bytes_in_chars(e->str, iter.offset);
+  // The insertion offset into the destination node.
+  size_t offset = iter->s[0].skip_size;
+  if (offset) {
+    assert(offset <= e->nexts[0].skip_size);
+    offset_bytes = count_bytes_in_chars(e->str, offset);
   }
   
   // Maybe we can insert the characters into the current node?
@@ -347,9 +455,9 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     // - The insert would be at the start of the next node
     // - There's room in the next node
     if (next && next->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE) {
-      iter.offset = offset_bytes = 0;
+      offset = offset_bytes = 0;
       for (int i = 0; i < next->height; i++) {
-        iter.nodes[i] = next;
+        iter->s[i].node = next;
         // tree offset nodes will not be used.
       }
       e = next;
@@ -373,9 +481,15 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
     r->num_bytes += num_inserted_bytes;
     size_t num_inserted_chars = strlen_utf8(str);
     r->num_chars += num_inserted_chars;
-    
+
     // .... aaaand update all the offset amounts.
-    update_offset_list(r, iter.nodes, num_inserted_chars);
+#if ROPE_UCS2
+    size_t num_inserted_ucs2 = count_ucs2_in_chars(str, num_inserted_chars);
+    update_offset_list(r, iter, num_inserted_chars, num_inserted_ucs2);
+#else
+    update_offset_list(r, iter, num_inserted_chars);
+#endif
+    
   } else {
     // There isn't room. We'll need to add at least one new node to the rope.
     
@@ -386,8 +500,13 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
       // We'll pretend like the character have been deleted from the node, while leaving
       // the bytes themselves there (for later).
       e->num_bytes = offset_bytes;
-      num_end_chars = e->nexts[0].skip_size - iter.offset;
-      update_offset_list(r, iter.nodes, -num_end_chars);
+      num_end_chars = e->nexts[0].skip_size - offset;
+#if ROPE_UCS2
+      size_t num_end_ucs2 = count_ucs2_in_chars(&e->str[offset_bytes], num_end_chars);
+      update_offset_list(r, iter, -num_end_chars, -num_end_ucs2);
+#else
+      update_offset_list(r, iter, -num_end_chars);
+#endif
       
       r->num_chars -= num_end_chars;
       r->num_bytes -= num_end_bytes;
@@ -411,69 +530,109 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
         }
       }
       
-      insert_at(r, pos, &iter, &str[str_offset], new_node_bytes, new_node_chars);
-      pos += new_node_chars;
+      insert_at(r, iter, &str[str_offset], new_node_bytes, new_node_chars);
       str_offset += new_node_bytes;
     }
     
     if (num_end_bytes) {
-      insert_at(r, pos, &iter, &e->str[offset_bytes], num_end_bytes, num_end_chars);
+      insert_at(r, iter, &e->str[offset_bytes], num_end_bytes, num_end_chars);
     }
   }
+}
 
+void rope_insert(rope *r, size_t pos, const uint8_t *str) {
+  assert(r);
+  assert(str);
+#ifdef DEBUG
+  _rope_check(r);
+#endif
+  pos = MIN(pos, r->num_chars);
+  
+  rope_iter iter;
+  // First we need to search for the node where we'll insert the string.
+  rope_node *e = iter_at_char_pos(r, pos, &iter);
+
+  rope_insert_at_iter(r, e, &iter, str);
+  
 #ifdef DEBUG
   _rope_check(r);
 #endif
 }
 
-// Delete num characters at position pos. Deleting past the end of the string
-// has no effect.
-void rope_del(rope *r, size_t pos, size_t length) {
+#if ROPE_UCS2
+// Insert the given utf8 string into the rope at the specified position.
+size_t rope_insert_at_ucs2(rope *r, size_t ucs2_pos, const uint8_t *str) {
+  assert(r);
+  assert(str);
 #ifdef DEBUG
   _rope_check(r);
 #endif
-  assert(r);
-  pos = MIN(pos, r->num_chars);
-  length = MIN(length, r->num_chars - pos);
-
+  ucs2_pos = MIN(ucs2_pos, rope_ucs2_count(r));
+  
   rope_iter iter;
+  // First we need to search for the node where we'll insert the string.
+  rope_node *e = iter_at_ucs2_pos(r, ucs2_pos, &iter);
+  size_t pos = iter.s[r->head.height - 1].skip_size;
+  rope_insert_at_iter(r, e, &iter, str);
   
-  // Search for the node where we'll insert the string.
-  rope_node *e = go_to_node(r, pos, &iter);
-  
+#ifdef DEBUG
+  _rope_check(r);
+#endif
+  return pos;
+}
+
+#endif
+
+// Delete num characters at position pos. Deleting past the end of the string
+// has no effect.
+static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t length) {  
   r->num_chars -= length;
-  
+  size_t offset = iter->s[0].skip_size;
   while (length) {
-    if (iter.offset == e->nexts[0].skip_size) {
+    if (offset == e->nexts[0].skip_size) {
       // End of the current node. Skip to the start of the next one.
-      e = iter.nodes[0]->nexts[0].node;
-      iter.offset = 0;
+      e = iter->s[0].node->nexts[0].node;
+      offset = 0;
     }
     
     size_t num_chars = e->nexts[0].skip_size;
-    size_t removed = MIN(length, num_chars - iter.offset);
+    size_t removed = MIN(length, num_chars - offset);
+#if ROPE_UCS2
+    size_t removed_ucs2;
+#endif
     
     int i;
     if (removed < num_chars || e == &r->head) {
       // Just trim this node down to size.
-      size_t leading_bytes = count_bytes_in_chars(e->str, iter.offset);
-      size_t removed_bytes = count_bytes_in_chars(e->str + leading_bytes, removed);
+      size_t leading_bytes = count_bytes_in_chars(e->str, offset);
+      size_t removed_bytes = count_bytes_in_chars(&e->str[leading_bytes], removed);
       size_t trailing_bytes = e->num_bytes - leading_bytes - removed_bytes;
-      
+#if ROPE_UCS2
+      removed_ucs2 = count_ucs2_in_chars(&e->str[leading_bytes], removed);
+#endif
       if (trailing_bytes) {
-        memmove(e->str + leading_bytes, e->str + leading_bytes + removed_bytes, trailing_bytes);
+        memmove(&e->str[leading_bytes], &e->str[leading_bytes + removed_bytes], trailing_bytes);
       }
       e->num_bytes -= removed_bytes;
       r->num_bytes -= removed_bytes;
       
       for (i = 0; i < e->height; i++) {
         e->nexts[i].skip_size -= removed;
+#if ROPE_UCS2
+        e->nexts[i].ucs_size -= removed_ucs2;
+#endif
       }
     } else {
       // Remove the node from the list
+#if ROPE_UCS2
+      removed_ucs2 = e->nexts[0].ucs_size;
+#endif
       for (i = 0; i < e->height; i++) {
-        iter.nodes[i]->nexts[i].node = e->nexts[i].node;
-        iter.nodes[i]->nexts[i].skip_size += e->nexts[i].skip_size - removed;
+        iter->s[i].node->nexts[i].node = e->nexts[i].node;
+        iter->s[i].node->nexts[i].skip_size += e->nexts[i].skip_size - removed;
+#if ROPE_UCS2
+        iter->s[i].node->nexts[i].ucs_size += e->nexts[i].ucs_size - removed_ucs2;
+#endif
       }
       
       r->num_bytes -= e->num_bytes;
@@ -484,15 +643,75 @@ void rope_del(rope *r, size_t pos, size_t length) {
     }
     
     for (; i < r->head.height; i++) {
-      iter.nodes[i]->nexts[i].skip_size -= removed;
+      iter->s[i].node->nexts[i].skip_size -= removed;
+#if ROPE_UCS2
+      iter->s[i].node->nexts[i].ucs_size -= removed_ucs2;
+#endif
     }
     
     length -= removed;
   }
+}
+
+void rope_del(rope *r, size_t pos, size_t length) {
+#ifdef DEBUG
+  _rope_check(r);
+#endif
+  
+  assert(r);
+  pos = MIN(pos, r->num_chars);
+  length = MIN(length, r->num_chars - pos);
+  
+  rope_iter iter;
+  
+  // Search for the node where we'll insert the string.
+  rope_node *e = iter_at_char_pos(r, pos, &iter);
+  
+  rope_del_at_iter(r, e, &iter, length);
+  
 #ifdef DEBUG
   _rope_check(r);
 #endif
 }
+
+#if ROPE_UCS2
+// Convert from a ucs2 length to a utf8 character offset. Counts from the start of e.
+static size_t ucs2_to_char_count(rope *r, const rope_iter *iter, size_t ucs2_length) {
+//  size_t length = 0;
+  rope_iter end_iter;
+  int h = r->head.height - 1;
+  iter_at_ucs2_pos(r, ucs2_length + iter->s[h].ucs_size, &end_iter);
+  
+  return end_iter.s[h].skip_size - iter->s[h].skip_size;
+}
+
+size_t rope_del_at_ucs2(rope *r, size_t ucs2_pos, size_t ucs2_num, size_t *char_len_out) {
+#ifdef DEBUG
+  _rope_check(r);
+#endif
+  
+  assert(r);
+  size_t ucs2_count = rope_ucs2_count(r);
+  ucs2_pos = MIN(ucs2_pos, ucs2_count);
+  ucs2_num = MIN(ucs2_num, ucs2_count - ucs2_pos);
+  
+  rope_iter iter;
+  
+  // Search for the node where we'll insert the string.
+  rope_node *start = iter_at_ucs2_pos(r, ucs2_pos, &iter);
+  size_t char_pos = iter.s[r->head.height - 1].skip_size;
+  size_t char_length = ucs2_to_char_count(r, &iter, ucs2_num);
+  rope_del_at_iter(r, start, &iter, char_length);
+  
+#ifdef DEBUG
+  _rope_check(r);
+#endif
+  if (char_len_out) {
+    *char_len_out = char_length;
+  }
+  return char_pos;
+}
+#endif
 
 void _rope_check(rope *r) {
   assert(r->head.height); // Even empty ropes have a height of 1.
@@ -504,39 +723,55 @@ void _rope_check(rope *r) {
   
   size_t num_bytes = 0;
   size_t num_chars = 0;
+#if ROPE_UCS2
+  size_t num_ucs2 = 0;
+#endif
 
-  rope_iter iter;
-  iter.offset = 0;
+  // The offsets here are used to store the total distance travelled from the start
+  // of the rope.
+  rope_iter iter = {};
   for (int i = 0; i < r->head.height; i++) {
-    iter.nodes[i] = &r->head;
-    
-    // The tree offsets here are used to store the total distance travelled from the start
-    // of the rope.
-    iter.tree_offsets[i] = 0;
+    iter.s[i].node = &r->head;
   }
   
   for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     assert(n == &r->head || n->num_bytes);
     assert(n->height <= ROPE_MAX_HEIGHT);
     assert(count_bytes_in_chars(n->str, n->nexts[0].skip_size) == n->num_bytes);
-    
+#if ROPE_UCS2
+    assert(count_ucs2_in_chars(n->str, n->nexts[0].skip_size) == n->nexts[0].ucs_size);
+#endif
     for (int i = 0; i < n->height; i++) {
-      assert(iter.nodes[i] == n);
-      assert(iter.tree_offsets[i] == num_chars);
-      iter.nodes[i] = n->nexts[i].node;
-      iter.tree_offsets[i] += n->nexts[i].skip_size;
+      assert(iter.s[i].node == n);
+      assert(iter.s[i].skip_size == num_chars);
+      iter.s[i].node = n->nexts[i].node;
+      iter.s[i].skip_size += n->nexts[i].skip_size;
+#if ROPE_UCS2
+      assert(iter.s[i].ucs_size == num_ucs2);
+      iter.s[i].ucs_size += n->nexts[i].ucs_size;
+#endif
     }
     
     num_bytes += n->num_bytes;
     num_chars += n->nexts[0].skip_size;
+#if ROPE_UCS2
+    num_ucs2 += n->nexts[0].ucs_size;
+#endif
   }
   
   for (int i = 0; i < r->head.height; i++) {
-    assert(iter.nodes[i] == NULL);
+    assert(iter.s[i].node == NULL);
+    assert(iter.s[i].skip_size == num_chars);
+#if ROPE_UCS2
+    assert(iter.s[i].ucs_size == num_ucs2);
+#endif
   }
   
   assert(r->num_bytes == num_bytes);
   assert(r->num_chars == num_chars);
+#if ROPE_UCS2
+  assert(skip_over.ucs_size == num_ucs2);
+#endif
 }
 
 // For debugging.

@@ -15,18 +15,37 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// Whether or not the rope should support converting offsets to UCS-2 positions. This is useful
+// when interoperating with strings in JS, Objective-C and many other languages.
+// See http://josephg.com/post/31707645955/string-length-lies
+//
+// Adding UCS2 conversion support decreases performance by about 30%.
+#ifndef ROPE_UCS2
+#define ROPE_UCS2 1
+#endif
+
 // These two magic values seem to be approximately optimal given the benchmark in
 // tests.c which does lots of small inserts.
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
-#define ROPE_NODE_STR_SIZE 138
+#ifndef ROPE_NODE_STR_SIZE
+#if ROPE_UCS2
+#define ROPE_NODE_STR_SIZE 64
+#else
+#define ROPE_NODE_STR_SIZE 136
+#endif
+#endif
 
 // The likelyhood (%) a node will have height (n+1) instead of n
+#ifndef ROPE_BIAS
 #define ROPE_BIAS 25
+#endif
 
 // The rope will stop being efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
+#ifndef ROPE_MAX_HEIGHT
 #define ROPE_MAX_HEIGHT 60
+#endif
 
 struct rope_node_t;
 
@@ -41,8 +60,9 @@ typedef struct {
   struct rope_node_t *node;
 
   // The number of ucs characters contained, if it was stored using ucs-2.
-//  size_t ucs_size;
-  
+#if ROPE_UCS2
+  size_t ucs_size;
+#endif
 } rope_skip_node;
 
 typedef struct rope_node_t {
@@ -108,14 +128,31 @@ size_t rope_char_count(rope *r);
 // string
 size_t rope_byte_count(rope *r);
 
-
 // Insert the given utf8 string into the rope at the specified position.
 void rope_insert(rope *r, size_t pos, const uint8_t *str);
 
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
+  
+#if ROPE_UCS2
+// Get the number of UCS2 characters in the rope
+size_t rope_ucs2_count(rope *r);
 
+// Insert the given utf8 string into the rope at the specified UCS2 position. This is compatible
+// with NSString, Javascript, etc. The string still needs to be passed in using UTF-8.
+//
+// Returns the insertion position in characters.
+size_t rope_insert_at_ucs2(rope *r, size_t ucs2_pos, const uint8_t *utf8_str);
+  
+// Delete ucs2_num UCS2 characters at the specified position.
+// Returns the deletion position in characters. *char_len_out is set to the deletion length, in
+// chars if its not null.
+size_t rope_del_at_ucs2(rope *r, size_t ucs2_pos, size_t ucs2_num, size_t *char_len_out);
+#endif
+
+
+  
 // For debugging.
 void _rope_check(rope *r);
 void _rope_print(rope *r);

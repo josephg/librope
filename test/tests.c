@@ -70,6 +70,41 @@ static size_t strlen_utf8(uint8_t *data) {
   return numchars;
 }
 
+#if ROPE_UCS2
+// Count the number of wchars this string would take up if it was encoded using utf16.
+static size_t wchar_size_count(uint8_t *data) {
+  size_t num = 0;
+  
+  while (*data) {
+    if ((*data & 0xC0) != 0x80) {
+      ++num;
+      if ((*data & 0xf0) == 0xf0) {
+        // It'll take up 2 wchars, not just one.
+        ++num;
+      }
+    }
+    
+    ++data;
+  }
+  
+  return num;
+}
+
+static size_t count_wchars_in_utf8(const uint8_t *str, size_t num_chars) {
+  size_t wchars = num_chars;
+  while (num_chars) {
+    if ((*str & 0xf0) == 0xf0) {
+      wchars++;
+    }
+    if ((*str & 0xc0) != 0x80) {
+      num_chars--;
+    }
+    ++str;
+  }
+  return wchars;
+}
+#endif
+
 void test(int cond) {
   if (!cond) {
     fprintf(stderr, "Test failed\n");
@@ -168,6 +203,31 @@ static void test_delete_past_end_of_string() {
   rope_free(r);
 }
 
+static void test_ucs2() {
+#if ROPE_UCS2
+  rope *r = rope_new_with_utf8((uint8_t *)"𐆔𐆚𐆔");
+  test(rope_ucs2_count(r) == 6);
+  
+  size_t len;
+  size_t pos = rope_del_at_ucs2(r, 2, 2, &len);
+  check(r, "𐆔𐆔");
+  test(pos == 1);
+  test(len == 1);
+  
+  pos = rope_insert_at_ucs2(r, 2, (uint8_t *)"abcde");
+  check(r, "𐆔abcde𐆔");
+  test(pos == 1);
+  
+  pos = rope_insert_at_ucs2(r, 5, (uint8_t *)"𐆚");
+  check(r, "𐆔abc𐆚de𐆔");
+  test(pos == 4);
+  
+  rope_free(r);
+#else
+  printf("Skipping UCS2 tests - no compile-time UCS2 support.\n");
+#endif
+}
+
 static void test_really_long_ascii_string() {
   size_t len = 2000;
   uint8_t *str = malloc(len + 1);
@@ -249,7 +309,6 @@ static void test_random_edits() {
     rope_free(r2);
     
 //    printf("String contains '%s'\n", str->mem);
-    
     test(rope_byte_count(r) == str->len);
     size_t len = strlen_utf8(str->mem);
     test(rope_char_count(r) == len);
@@ -257,7 +316,6 @@ static void test_random_edits() {
     
     if (len == 0 || rand_float() < 0.5f) {
       // Insert.
-      //uint8_t *text = random_ascii_string(11);
       random_unicode_string(strbuffer, 1 + random() % max_stringsize);
       size_t pos = random() % (len + 1);
       
@@ -272,10 +330,6 @@ static void test_random_edits() {
       dellen = MIN(len - pos, dellen);
       
 //      printf("deleting %zd chars at %zd\n", dellen, pos);
-
-      //deletedText = str[pos...pos + length]
-      //test.strictEqual deletedText, r.substring pos, length
-
       rope_del(r, pos, dellen);
       str_del(str, pos, dellen);
     }
@@ -285,6 +339,59 @@ static void test_random_edits() {
   str_destroy(str);
 }
 
+static void test_random_ucs2_edits() {
+#if ROPE_UCS2
+  // This string should always have the same content as the rope.
+  // Both are stored using UTF-8, but we'll make edits using the UCS-2 functions.
+  _string *str = str_create();
+  rope *r = rope_new();
+  
+  const size_t max_stringsize = 1000;
+  uint8_t strbuffer[max_stringsize + 1];
+  
+  for (int i = 0; i < 1000; i++) {
+    check(r, (char *)str->mem);
+    
+//    printf("String contains '%s'\n", str->mem);
+    test(rope_byte_count(r) == str->len);
+    size_t len = strlen_utf8(str->mem);
+    test(rope_char_count(r) == len);
+    test(str_num_chars(str) == len);
+    test(rope_ucs2_count(r) == wchar_size_count(str->mem));
+    
+    if (len == 0 || rand_float() < 0.5f) {
+      // Insert.
+      random_unicode_string(strbuffer, 1 + random() % max_stringsize);
+      size_t pos = random() % (len + 1);
+      
+      // We need to convert pos to the wchar offset. There's a private function in rope.c for this
+      // but ...
+      size_t wchar_pos = count_wchars_in_utf8(str->mem, pos);
+      
+//      printf("inserting '%s' at %zd\n", strbuffer, pos);
+      rope_insert_at_ucs2(r, wchar_pos, strbuffer);
+      str_insert(str, pos, strbuffer);
+    } else {
+      // Delete
+      size_t pos = random() % len;
+      
+      size_t dellen = random() % 10;
+      dellen = MIN(len - pos, dellen);
+      
+      size_t wchar_pos = count_wchars_in_utf8(str->mem, pos);
+      size_t wchar_len = count_wchars_in_utf8(str->mem, pos + dellen) - wchar_pos;
+//      printf("deleting %zd (%zd) chars at %zd (%zd)\n", dellen, wchar_len, pos, wchar_pos);
+      rope_del_at_ucs2(r, wchar_pos, wchar_len, NULL);
+      str_del(str, pos, dellen);
+    }
+  }
+  
+  rope_free(r);
+  str_destroy(str);
+#endif
+}
+
+
 void test_all() {
   printf("Running tests...\n");
   test_empty_rope_has_no_content();
@@ -292,10 +399,13 @@ void test_all() {
   test_new_string_has_content();
   test_delete_at_location();
   test_delete_past_end_of_string();
+  test_ucs2();
   test_really_long_ascii_string();
   test_custom_allocator();
   test_copy();
+  printf("Normal tests passed. Running randomizers...\n");
   test_random_edits();
+  test_random_ucs2_edits();
   printf("Done!\n");
 }
 

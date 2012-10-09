@@ -35,9 +35,9 @@ Wide Character String Compatibility
 
 String insertion / deletion positions in Javascript, Objective-C (NSString), Java, C# and others are **wrong sometimes**!!!
 
-These languages store strings as arrays of `wchar`s (two byte characters). Some characters in the unicode character set require more than two bytes. These languages encode such characters using multiple wchars as per UTF-16. This works most of the time. However, insertion and deletion positions in these strings still refer to offsets in the underlying array. So unicode characters which take up 4 bytes in UTF-16 count as two characters for the purpose of deletion ranges, insertion positions and string length.
+These languages store strings as `wchar` arrays (arrays of two byte characters). Some characters in the unicode character set require more than two bytes. These languages encode such characters using multiple wchars as per UTF-16. This works most of the time. However, insertion and deletion positions in these strings still refer to offsets in the underlying array. So unicode characters which take up 4 bytes in UTF-16 count as two characters for the purpose of deletion ranges, insertion positions and string length.
 
-Even though these characters are exceptionally rare, I don't want my editor to go all funky if people start getting creative. About a quarter of librope's code is dedicated to fixing this mismatch. However, bookkeeping isn't free - librope performance drops by 35% with wchar conversion bookkeeping enabled.
+Even though these characters are exceptionally rare, I don't want my editor to go all funky if people start getting creative. About a quarter of librope's code is dedicated to fixing this mismatch. However, bookkeeping isn't free - librope performance drops by 35% when wchar conversion support is enabled.
 
 For more information, read my [blog post about it](http://josephg.com/post/31707645955/string-length-lies).
 
@@ -49,6 +49,6 @@ Long story short, if you need to interoperate with strings from any of these dod
 #### Beware:
 
 - When using `rope_insert_at_wchar` you still need to convert the string you're inserting into UTF-8 before you pass it into librope.
-- The API lets you try to delete or insert halfway through a large character. Don't do that - I don't know what would happen.
+- The API lets you try to delete or insert halfway through a large character. You probably don't want to do that.
 - librope is 100% faithful when it comes to the characters you're inserting. If your string has byte order marks, you might want to remove them before passing the string into librope.
 

@@ -21,7 +21,7 @@
 //
 // Adding wchar conversion support decreases performance by about 30%.
 #ifndef ROPE_WCHAR
-#define ROPE_WCHAR 1
+#define ROPE_WCHAR 0
 #endif
 
 // These two magic values seem to be approximately optimal given the benchmark in

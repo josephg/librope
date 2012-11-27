@@ -93,29 +93,29 @@ void rope_free(rope *r) {
   r->free(r);
 }
 
+// Copies the rope's contents into a utf8 encoded C string. Also copies a trailing '\0' character.
+// Returns the number of bytes written, which is rope_byte_count(r) + 1.
+size_t rope_write_cstr(rope *r, uint8_t *dest) {
+  size_t num_bytes = rope_byte_count(r);
+  dest[num_bytes] = '\0';
+  
+  if (num_bytes) {
+    uint8_t *p = dest;
+    for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
+      memcpy(p, n->str, n->num_bytes);
+      p += n->num_bytes;
+    }
+    
+    assert(p == &dest[num_bytes]);
+  }
+  return num_bytes + 1;
+}
+
 // Create a new C string which contains the rope. The string will contain
-// the rope encoded as utf-8.
-uint8_t *rope_createcstr(rope *r, size_t *len) {
-  size_t numbytes = rope_byte_count(r);
-  uint8_t *bytes = (uint8_t *)r->alloc(numbytes + 1); // Room for a zero.
-  bytes[numbytes] = '\0';
-  
-  if (numbytes == 0) {
-    return bytes;
-  }
-  
-  uint8_t *p = bytes;
-  for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
-    memcpy(p, n->str, n->num_bytes);
-    p += n->num_bytes;
-  }
-  
-  assert(p == &bytes[numbytes]);
-  
-  if (len) {
-    *len = numbytes;
-  }
-  
+// the rope encoded as utf8.
+uint8_t *rope_create_cstr(rope *r) {
+  uint8_t *bytes = (uint8_t *)r->alloc(rope_byte_count(r) + 1); // Room for a zero.
+  rope_write_cstr(r, bytes);
   return bytes;
 }
 

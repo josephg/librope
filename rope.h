@@ -115,11 +115,14 @@ rope *rope_copy(const rope *r);
 // Free the specified rope
 void rope_free(rope *r);
 
+// Copies the rope's contents into a utf8 encoded C string. Also copies a trailing '\0' character.
+// Returns the number of bytes written, which is rope_byte_count(r) + 1.
+size_t rope_write_cstr(rope *r, uint8_t *dest);
+
 // Create a new C string which contains the rope. The string will contain
-// the rope encoded as utf-8.
-// The length (in bytes) of the returned c string is returned via the len pointer.
-// Use NULL if you're not interested in the length.
-uint8_t *rope_createcstr(rope *r, size_t *len);
+// the rope encoded as utf8, followed by a trailing '\0'.
+// Use rope_byte_count(r) to get the length of the returned string.
+uint8_t *rope_create_cstr(rope *r);
 
 // Get the number of characters in a rope
 size_t rope_char_count(rope *r);

@@ -115,7 +115,7 @@ void test(int cond) {
 void check(rope *rope, char *expected) {
   _rope_check(rope);
   test(rope_byte_count(rope) == strlen(expected));
-  uint8_t *cstr = rope_createcstr(rope, NULL);
+  uint8_t *cstr = rope_create_cstr(rope);
   test(strcmp((char *)cstr, expected) == 0);
   free(cstr);
 }
@@ -124,6 +124,11 @@ static void test_empty_rope_has_no_content() {
   rope *r = rope_new();
   check(r, "");
   test(rope_char_count(r) == 0);
+  
+  uint8_t *bytes = rope_create_cstr(r);
+  test(bytes[0] == '\0');
+  free(bytes);
+  
   rope_free(r);
 }
 
@@ -241,7 +246,7 @@ static void test_really_long_ascii_string() {
   rope_del(r, 1, len - 2);
   assert(r->num_bytes == 2);
   assert(r->num_chars == 2);
-  char *contents = (char *)rope_createcstr(r, NULL);
+  char *contents = (char *)rope_create_cstr(r);
   _rope_check(r);
   test(contents[0] == str[0]);
   test(contents[1] == str[len - 1]);

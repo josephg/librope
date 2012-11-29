@@ -244,7 +244,7 @@ static void test_really_long_ascii_string() {
   
   // Iterate through all the characters using the loop macros and make sure it all works.
   size_t pos = 0;
-  ROPE_FOREACH(n) {
+  ROPE_FOREACH(r, n) {
     test(memcmp(rope_node_data(n), &str[pos], rope_node_num_bytes(n)) == 0);
     pos += rope_node_num_bytes(n);
   }

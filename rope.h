@@ -139,7 +139,14 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 void rope_del(rope *r, size_t pos, size_t num);
   
 // This macro expands to a for() loop header which loops over the segments in a rope.
-#define ROPE_FOREACH(n) for (rope_node *(n) = &r->head; (n) != NULL; (n) = (n)->nexts[0].node)
+//
+// Eg:
+//  rope *r = rope_new_with_utf8(str);
+//  ROPE_FOREACH(r, iter) {
+//    printf("%s", rope_node_data(iter));
+//  }
+#define ROPE_FOREACH(rope, iter) \
+  for (rope_node *iter = &(rope)->head; iter != NULL; iter = iter->nexts[0].node)
 
 // Get the actual data inside a rope node.
 static inline uint8_t *rope_node_data(rope_node *n) {

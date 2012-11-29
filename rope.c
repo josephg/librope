@@ -93,6 +93,19 @@ void rope_free(rope *r) {
   r->free(r);
 }
 
+// Get the number of characters in a rope
+size_t rope_char_count(rope *r) {
+  assert(r);
+  return r->num_chars;
+}
+
+// Get the number of bytes which the rope would take up if stored as a utf8
+// string
+size_t rope_byte_count(rope *r) {
+  assert(r);
+  return r->num_bytes;
+}
+
 // Copies the rope's contents into a utf8 encoded C string. Also copies a trailing '\0' character.
 // Returns the number of bytes written, which is rope_byte_count(r) + 1.
 size_t rope_write_cstr(rope *r, uint8_t *dest) {
@@ -117,19 +130,6 @@ uint8_t *rope_create_cstr(rope *r) {
   uint8_t *bytes = (uint8_t *)r->alloc(rope_byte_count(r) + 1); // Room for a zero.
   rope_write_cstr(r, bytes);
   return bytes;
-}
-
-// Get the number of characters in a rope
-size_t rope_char_count(rope *r) {
-  assert(r);
-  return r->num_chars;
-}
-
-// Get the number of bytes which the rope would take up if stored as a utf8
-// string
-size_t rope_byte_count(rope *r) {
-  assert(r);
-  return r->num_bytes;
 }
 
 #if ROPE_WCHAR

@@ -242,6 +242,14 @@ static void test_really_long_ascii_string() {
   test(rope_char_count(r) == len);
   check(r, (char *)str);
   
+  // Iterate through all the characters using the loop macros and make sure it all works.
+  size_t pos = 0;
+  ROPE_FOREACH(n) {
+    test(memcmp(rope_node_data(n), &str[pos], rope_node_num_bytes(n)) == 0);
+    pos += rope_node_num_bytes(n);
+  }
+  test(pos == r->num_bytes);
+  
   // Delete everything but the first and last characters.
   rope_del(r, 1, len - 2);
   assert(r->num_bytes == 2);

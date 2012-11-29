@@ -138,6 +138,24 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
   
+// This macro expands to a for() loop header which loops over the segments in a rope.
+#define ROPE_FOREACH(n) for (rope_node *(n) = &r->head; (n) != NULL; (n) = (n)->nexts[0].node)
+
+// Get the actual data inside a rope node.
+static inline uint8_t *rope_node_data(rope_node *n) {
+  return n->str;
+}
+
+// Get the number of bytes inside a rope node. This is useful when you're looping through a rope.
+static inline size_t rope_node_num_bytes(rope_node *n) {
+  return n->num_bytes;
+}
+
+// Get the number of characters inside a rope node.
+static inline size_t rope_node_chars(rope_node *n) {
+  return n->nexts[0].skip_size;
+}
+  
 #if ROPE_WCHAR
 // Get the number of wchar characters in the rope
 size_t rope_wchar_count(rope *r);
@@ -153,6 +171,11 @@ size_t rope_insert_at_wchar(rope *r, size_t wchar_pos, const uint8_t *utf8_str);
 // chars if its not null.
 // If the range is inside character boundaries, behaviour is undefined.
 size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *char_len_out);
+  
+// Get the number of wchars inside a rope node. This is useful when you're looping throuhg a rope.
+static inline size_t rope_node_wchars(rope_node *n) {
+  return n->nexts[0].wchar_size;
+}
 #endif
 
 

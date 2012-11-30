@@ -1,9 +1,12 @@
 .PHONY: all clean
 
-CFLAGS=-O2 -emit-llvm -Wall -arch x86_64 -I.
+CFLAGS=-O2 -Wall -I.
 
-# Debug mode.
-#CFLAGS=-g -Wall -arch x86_64 -I.
+UNAME := $(shell uname)
+
+ifeq ($(UNAME), Darwin)
+CFLAGS := $(CFLAGS) -emit-llvm -arch x86_64
+endif
 
 all: librope.a
 
@@ -14,7 +17,7 @@ rope.o: rope.c rope.h
 	$(CC) $(CFLAGS) $< -c
 
 librope.a: rope.o
-	ar -r $@ $+
+	ar rcs $@ $+
 
 # Only need corefoundation to run the tests on mac
 tests: librope.a test/tests.c test/benchmark.c test/slowstring.c

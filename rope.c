@@ -772,11 +772,11 @@ void _rope_check(rope *r) {
 // For debugging.
 #include <stdio.h>
 void _rope_print(rope *r) {
-  printf("chars: %ld\tbytes: %ld\theight: %d\n", r->num_chars, r->num_bytes, r->head.height);
+  printf("chars: %zd\tbytes: %zd\theight: %d\n", r->num_chars, r->num_bytes, r->head.height);
 
   printf("HEAD");
   for (int i = 0; i < r->head.height; i++) {
-    printf(" |%3ld ", r->head.nexts[i].skip_size);
+    printf(" |%3zd ", r->head.nexts[i].skip_size);
   }
   printf("\n");
   
@@ -784,7 +784,7 @@ void _rope_print(rope *r) {
   for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     printf("%3d:", num++);
     for (int i = 0; i < n->height; i++) {
-      printf(" |%3ld ", n->nexts[i].skip_size);
+      printf(" |%3zd ", n->nexts[i].skip_size);
     }
     printf("        : \"");
     fwrite(n->str, n->num_bytes, 1, stdout);

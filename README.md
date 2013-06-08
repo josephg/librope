@@ -25,7 +25,7 @@ rope_insert(r, 0, "Hi there!");
 rope_delete(r, 2, 6);
 
 // Get the whole string back out of the rope
-uint8_t *str = rope_createcstr(rope, NULL);
+uint8_t *str = rope_createcstr(r, NULL);
 
 // str now contains "Hi!"!
 ```

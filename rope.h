@@ -116,11 +116,11 @@ rope *rope_copy(const rope *r);
 void rope_free(rope *r);
 
 // Get the number of characters in a rope
-size_t rope_char_count(rope *r);
+size_t rope_char_count(const rope *r);
 
 // Get the number of bytes which the rope would take up if stored as a utf8
 // string
-size_t rope_byte_count(rope *r);
+size_t rope_byte_count(const rope *r);
 
 // Copies the rope's contents into a utf8 encoded C string. Also copies a trailing '\0' character.
 // Returns the number of bytes written, which is rope_byte_count(r) + 1.

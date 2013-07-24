@@ -94,14 +94,14 @@ void rope_free(rope *r) {
 }
 
 // Get the number of characters in a rope
-size_t rope_char_count(rope *r) {
+size_t rope_char_count(const rope *r) {
   assert(r);
   return r->num_chars;
 }
 
 // Get the number of bytes which the rope would take up if stored as a utf8
 // string
-size_t rope_byte_count(rope *r) {
+size_t rope_byte_count(const rope *r) {
   assert(r);
   return r->num_bytes;
 }

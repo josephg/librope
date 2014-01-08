@@ -5,8 +5,8 @@
  * 
  * It uses skip lists instead of trees. Trees might be faster - who knows?
  *
- * Ropes are NOT THREAD SAFE. Do not call multiple rope methods
- * simultaneously from different threads.
+ * Ropes are not syncronized. Do not access the same rope from multiple threads
+ * simultaneously.
  */
 
 #ifndef librope_rope_h
@@ -15,17 +15,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Whether or not the rope should support converting UTF-8 character offsets to wchar array
-// positions. This is useful when interoperating with strings in JS, Objective-C and many other
-// languages. See http://josephg.com/post/31707645955/string-length-lies
+// Whether or not the rope should support converting UTF-8 character offsets to
+// wchar array positions. This is useful when interoperating with strings in
+// JS, Objective-C and many other languages. See
+// http://josephg.com/post/31707645955/string-length-lies
 //
 // Adding wchar conversion support decreases performance by about 30%.
 #ifndef ROPE_WCHAR
 #define ROPE_WCHAR 0
 #endif
 
-// These two magic values seem to be approximately optimal given the benchmark in
-// tests.c which does lots of small inserts.
+// These two magic values seem to be approximately optimal given the benchmark
+// in tests.c which does lots of small inserts.
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
@@ -42,7 +43,8 @@
 #define ROPE_BIAS 25
 #endif
 
-// The rope will stop being efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
+// The rope will stop being efficient after the string is 2 ^ ROPE_MAX_HEIGHT
+// nodes.
 #ifndef ROPE_MAX_HEIGHT
 #define ROPE_MAX_HEIGHT 60
 #endif
@@ -122,7 +124,8 @@ size_t rope_char_count(const rope *r);
 // string
 size_t rope_byte_count(const rope *r);
 
-// Copies the rope's contents into a utf8 encoded C string. Also copies a trailing '\0' character.
+// Copies the rope's contents into a utf8 encoded C string. Also copies a
+// trailing '\0' character.
 // Returns the number of bytes written, which is rope_byte_count(r) + 1.
 size_t rope_write_cstr(rope *r, uint8_t *dest);
 
@@ -138,7 +141,8 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str);
 // has no effect.
 void rope_del(rope *r, size_t pos, size_t num);
   
-// This macro expands to a for() loop header which loops over the segments in a rope.
+// This macro expands to a for() loop header which loops over the segments in a
+// rope.
 //
 // Eg:
 //  rope *r = rope_new_with_utf8(str);
@@ -153,7 +157,8 @@ static inline uint8_t *rope_node_data(rope_node *n) {
   return n->str;
 }
 
-// Get the number of bytes inside a rope node. This is useful when you're looping through a rope.
+// Get the number of bytes inside a rope node. This is useful when you're
+// looping through a rope.
 static inline size_t rope_node_num_bytes(rope_node *n) {
   return n->num_bytes;
 }
@@ -167,19 +172,22 @@ static inline size_t rope_node_chars(rope_node *n) {
 // Get the number of wchar characters in the rope
 size_t rope_wchar_count(rope *r);
 
-// Insert the given utf8 string into the rope at the specified wchar position. This is compatible
-// with NSString, Javascript, etc. The string still needs to be passed in using UTF-8.
+// Insert the given utf8 string into the rope at the specified wchar position.
+// This is compatible with NSString, Javascript, etc. The string still needs to
+// be passed in using UTF-8.
 //
 // Returns the insertion position in characters.
 size_t rope_insert_at_wchar(rope *r, size_t wchar_pos, const uint8_t *utf8_str);
   
 // Delete wchar_num wide characters at the specified wchar position offset.
-// Returns the deletion position in characters. *char_len_out is set to the deletion length, in
-// chars if its not null.
 // If the range is inside character boundaries, behaviour is undefined.
+//
+// Returns the deletion position in characters. *char_len_out is set to the
+// deletion length, in chars if its not null.
 size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *char_len_out);
   
-// Get the number of wchars inside a rope node. This is useful when you're looping throuhg a rope.
+// Get the number of wchars inside a rope node. This is useful when you're
+// looping throuhg a rope.
 static inline size_t rope_node_wchars(rope_node *n) {
   return n->nexts[0].wchar_size;
 }

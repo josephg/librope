@@ -45,7 +45,9 @@ For more information, read my [blog post about it](http://josephg.com/string-len
 Long story short, if you need to interoperate with strings from any of these dodgy languages, here's what you do:
 
 - Compile with `-DROPE_WCHAR=1`. This macro enables the expensive wchar bookkeeping.
-- Use the alternate insert & delete functions `rope_insert_at_wchar(...)` and `rope_del_at_wchar(...)`. Take a look at the header file for details.
+- Use the alternate insert & delete functions `rope_insert_at_wchar(...)` and `rope_del_at_wchar(...)` when your index / size is specified in UTF-16 offsets.
+
+Take a look at the header file for documentation.
 
 #### Beware:
 

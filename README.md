@@ -28,6 +28,9 @@ rope_delete(r, 2, 6);
 uint8_t *str = rope_createcstr(r, NULL);
 
 // str now contains "Hi!"!
+
+// Done with the rope
+rope_free(r);
 ```
 
 Wide Character String Compatibility

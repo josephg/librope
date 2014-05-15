@@ -7,8 +7,6 @@ librope is implemented using skip lists, which have the same big-O time complexi
 
 librope is _fast_. It will happily perform ~1-5 million edit operations per second, depending on the size of your strings. Inserts and deletes in librope outperform straight C strings for any document longer than a few hundred bytes.
 
-This library is still pretty new. Let me know if you find any issues!
-
 Usage
 -----
 

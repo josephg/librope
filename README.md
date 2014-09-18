@@ -40,7 +40,7 @@ These languages store strings as `wchar` arrays (arrays of two byte characters).
 
 Even though these characters are exceptionally rare, I don't want my editor to go all funky if people start getting creative. About a quarter of librope's code is dedicated to fixing this mismatch. However, bookkeeping isn't free - librope performance drops by 35% when wchar conversion support is enabled.
 
-For more information, read my [blog post about it](http://josephg.com/string-length-lies).
+For more information, read my [blog post about it](https://josephg.com/blog/string-length-lies).
 
 Long story short, if you need to interoperate with strings from any of these dodgy languages, here's what you do:
 

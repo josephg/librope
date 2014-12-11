@@ -114,7 +114,7 @@ size_t rope_write_cstr(rope *r, uint8_t *dest) {
   
   if (num_bytes) {
     uint8_t *p = dest;
-    for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
+    for (rope_node* restrict n = &r->head; n != NULL; n = n->nexts[0].node) {
       memcpy(p, n->str, n->num_bytes);
       p += n->num_bytes;
     }

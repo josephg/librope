@@ -184,7 +184,8 @@ static rope_node *alloc_node(rope *r, uint8_t height) {
 // will occupy in memory.
 // Returns the number of bytes, or SIZE_MAX if the byte is invalid.
 static inline size_t codepoint_size(uint8_t byte) {
-  if (byte <= 0x7f) { return 1; } // 0x74 = 0111 1111
+  if (byte == 0) { return SIZE_MAX; } // NULL byte.
+  else if (byte <= 0x7f) { return 1; } // 0x74 = 0111 1111
   else if (byte <= 0xbf) { return SIZE_MAX; } // 1011 1111. Invalid for a starting byte.
   else if (byte <= 0xdf) { return 2; } // 1101 1111
   else if (byte <= 0xef) { return 3; } // 1110 1111
@@ -238,6 +239,26 @@ static size_t strlen_utf8(const uint8_t *str) {
     i++;
   }
   return i;
+}
+
+// Checks if a UTF8 string is ok. Returns the number of bytes in the string if
+// it is ok, otherwise returns -1.
+static ssize_t bytelen_and_check_utf8(const uint8_t *str) {
+  const uint8_t *p = str;
+  while (*p != '\0') {
+    size_t size = codepoint_size(*p);
+    if (size == SIZE_MAX) return -1;
+    p++; size--;
+    while (size > 0) {
+      // Check that any middle bytes are of the form 0x10xx xxxx
+      if ((*p & 0xb) != 8) return -1;
+      p++; size--;
+    }
+  }
+  size_t num = p - str;
+  assert(num == strlen((char *)str));
+
+  return p - str;
 }
 
 typedef struct {
@@ -428,7 +449,7 @@ static void insert_at(rope *r, rope_iter *iter,
 }
 
 // Insert the given utf8 string into the rope at the specified position.
-static void rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, const uint8_t *str) {
+static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, const uint8_t *str) {
   // iter.offset contains how far (in characters) into the current element to skip.
   // Figure out how much that is in bytes.
   size_t offset_bytes = 0;
@@ -439,8 +460,10 @@ static void rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, const ui
     offset_bytes = count_bytes_in_utf8(e->str, offset);
   }
   
-  // Maybe we can insert the characters into the current node?
-  size_t num_inserted_bytes = strlen((char *)str);
+  // We might be able to insert the new data into the current node, depending on
+  // how big it is. We'll count the bytes, and also check that its valid utf8.
+  ssize_t num_inserted_bytes = bytelen_and_check_utf8(str);
+  if (num_inserted_bytes == -1) return ROPE_INVALID_UTF8;
 
   // Can we insert into the current node?
   bool insert_here = e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
@@ -538,9 +561,11 @@ static void rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, const ui
       insert_at(r, iter, &e->str[offset_bytes], num_end_bytes, num_end_chars);
     }
   }
+  
+  return ROPE_OK;
 }
 
-void rope_insert(rope *r, size_t pos, const uint8_t *str) {
+ROPE_RESULT rope_insert(rope *r, size_t pos, const uint8_t *str) {
   assert(r);
   assert(str);
 #ifdef DEBUG
@@ -552,11 +577,13 @@ void rope_insert(rope *r, size_t pos, const uint8_t *str) {
   // First we need to search for the node where we'll insert the string.
   rope_node *e = iter_at_char_pos(r, pos, &iter);
 
-  rope_insert_at_iter(r, e, &iter, str);
+  ROPE_RESULT result = rope_insert_at_iter(r, e, &iter, str);
   
 #ifdef DEBUG
   _rope_check(r);
 #endif
+  
+  return result;
 }
 
 #if ROPE_WCHAR

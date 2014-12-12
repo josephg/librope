@@ -134,8 +134,12 @@ size_t rope_write_cstr(rope *r, uint8_t *dest);
 // Use rope_byte_count(r) to get the length of the returned string.
 uint8_t *rope_create_cstr(rope *r);
 
+// If you try to insert data into the rope with an invalid UTF8 encoding,
+// nothing will happen and we'll return ROPE_INVALID_UTF8.
+typedef enum { ROPE_OK, ROPE_INVALID_UTF8 } ROPE_RESULT;
+  
 // Insert the given utf8 string into the rope at the specified position.
-void rope_insert(rope *r, size_t pos, const uint8_t *str);
+ROPE_RESULT rope_insert(rope *r, size_t pos, const uint8_t *str);
 
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.

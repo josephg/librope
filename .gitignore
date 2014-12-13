@@ -1,4 +1,5 @@
 *.o
+*.bc
 librope.a
 tests
 *.swp
@@ -10,3 +11,7 @@ librope.sdf
 librope.vcxproj.*
 Build
 *.dSYM
+
+afl/afl
+afl/afl_findings
+

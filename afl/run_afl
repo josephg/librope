@@ -1,0 +1,4 @@
+rm -rf afl_findings/*
+afl-clang -O2 -Wall -I.. -std=c99 -arch x86_64 ../rope.c afl_harness.c -o afl
+afl-fuzz -i afl_testcases -o afl_findings ./afl
+

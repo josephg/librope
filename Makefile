@@ -5,16 +5,17 @@ CFLAGS=-O2 -Wall -I. -std=c99
 UNAME := $(shell uname)
 
 ifeq ($(UNAME), Darwin)
-CFLAGS := $(CFLAGS) -emit-llvm -arch x86_64
+CFLAGS := $(CFLAGS) -arch x86_64
 endif
 
 all: librope.a
 
 clean:
-	rm -f librope.a *.o tests
+	rm -f librope.a *.bc *.o tests
 
+# You can add -emit-llvm here if you're using clang.
 rope.o: rope.c rope.h
-	$(CC) $(CFLAGS) $< -c
+	$(CC) $(CFLAGS) $< -c -o $@
 
 librope.a: rope.o
 	ar rcs $@ $+

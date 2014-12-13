@@ -42,8 +42,14 @@ rope *rope_new() {
 // Create a new rope containing the specified string
 rope *rope_new_with_utf8(const uint8_t *str) {
   rope *r = rope_new();
-  rope_insert(r, 0, str);
-  return r;
+  ROPE_RESULT result = rope_insert(r, 0, str);
+  
+  if (result != ROPE_OK) {
+    rope_free(r);
+    return NULL;
+  } else {
+    return r;
+  }
 }
 
 rope *rope_copy(const rope *other) {
@@ -251,12 +257,16 @@ static ssize_t bytelen_and_check_utf8(const uint8_t *str) {
     p++; size--;
     while (size > 0) {
       // Check that any middle bytes are of the form 0x10xx xxxx
-      if ((*p & 0xb) != 8) return -1;
+      if ((*p & 0xc0) != 0x80)
+        return -1;
       p++; size--;
     }
   }
+
+#ifdef DEBUG
   size_t num = p - str;
   assert(num == strlen((char *)str));
+#endif
 
   return p - str;
 }

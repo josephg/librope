@@ -113,11 +113,16 @@ void test(int cond) {
 }
 
 void check(rope *rope, char *expected) {
-  _rope_check(rope);
-  test(rope_byte_count(rope) == strlen(expected));
-  uint8_t *cstr = rope_create_cstr(rope);
-  test(strcmp((char *)cstr, expected) == 0);
-  free(cstr);
+  // Rope will be null when the inserted data is invalid.
+  assert((rope == NULL) == (expected == NULL));
+  
+  if (rope) {
+    _rope_check(rope);
+    test(rope_byte_count(rope) == strlen(expected));
+    uint8_t *cstr = rope_create_cstr(rope);
+    test(strcmp((char *)cstr, expected) == 0);
+    free(cstr);
+  }
 }
 
 static void test_empty_rope_has_no_content() {
@@ -132,24 +137,51 @@ static void test_empty_rope_has_no_content() {
   rope_free(r);
 }
 
+static void checked_insert(rope *r, size_t pos, char *str) {
+  ROPE_RESULT result = rope_insert(r, pos, (uint8_t *)str);
+  assert(result == ROPE_OK);
+}
+
 static void test_insert_at_location() {
   rope *r = rope_new();
   
-  rope_insert(r, 0, (uint8_t *)"AAA");
+  checked_insert(r, 0, "AAA");
   check(r, "AAA");
   
-  rope_insert(r, 0, (uint8_t *)"BBB");
+  checked_insert(r, 0, "BBB");
   check(r, "BBBAAA");
 
-  rope_insert(r, 6, (uint8_t *)"CCC");
+  checked_insert(r, 6, "CCC");
   check(r, "BBBAAACCC");
 
-  rope_insert(r, 5, (uint8_t *)"DDD");
+  checked_insert(r, 5, "DDD");
   check(r, "BBBAADDDACCC");
   
   test(rope_char_count(r) == 12);
   
   rope_free(r);
+}
+
+static void check_invalid(char *err_str) {
+  rope *r = rope_new();
+  ROPE_RESULT result = rope_insert(r, 0, (uint8_t *)err_str);
+  assert(result == ROPE_INVALID_UTF8);
+  
+  // And check that nothing happened.
+  assert(0 == rope_char_count(r));
+  assert(0 == rope_byte_count(r));
+  rope_free(r);
+}
+
+static void test_invalid_utf8_rejected() {
+  check_invalid((char[]){0xb0,0}); // trailing middle byte
+  check_invalid((char[]){0xc0,0}); // half of 2 byte sequence
+  check_invalid((char[]){0xc0,0xb0,0xb0,0});
+  check_invalid((char[]){0xc0,0xc0,0xb0,0});
+  check_invalid((char[]){0xe0,0xb0,0}); // 2/3 in 3 byte sequence
+  check_invalid((char[]){0xe0,0xb0,0xb0,0xb0,0});
+  check_invalid((char[]){0xe0,0xc0,0xb0,0});
+  check_invalid((char[]){0xe0,0xc0,0xb0,0xb0,0});
 }
 
 // A rope initialized with a string has that string as its content
@@ -410,6 +442,7 @@ void test_all() {
   test_empty_rope_has_no_content();
   test_insert_at_location();
   test_new_string_has_content();
+  test_invalid_utf8_rejected();
   test_delete_at_location();
   test_delete_past_end_of_string();
   test_wchar();

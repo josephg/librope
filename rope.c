@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 // Needed for VC++, which always compiles in C++ mode and doesn't have stdbool.
 #ifndef __cplusplus
@@ -20,11 +21,11 @@ rope *rope_new2(void *(*alloc)(size_t bytes),
                 void (*free)(void *ptr)) {
   rope *r = (rope *)alloc(ROPE_SIZE);
   r->num_chars = r->num_bytes = 0;
-  
+
   r->alloc = alloc;
   r->realloc = realloc;
   r->free = free;
-  
+
   r->head.height = 1;
   r->head.num_bytes = 0;
   r->head.nexts[0].node = NULL;
@@ -43,7 +44,7 @@ rope *rope_new() {
 rope *rope_new_with_utf8(const uint8_t *str) {
   rope *r = rope_new();
   ROPE_RESULT result = rope_insert(r, 0, str);
-  
+
   if (result != ROPE_OK) {
     rope_free(r);
     return NULL;
@@ -54,10 +55,10 @@ rope *rope_new_with_utf8(const uint8_t *str) {
 
 rope *rope_copy(const rope *other) {
   rope *r = (rope *)other->alloc(ROPE_SIZE);
-  
+
   // Just copy most of the head's data. Note this won't copy the nexts list in head.
   *r = *other;
-  
+
   rope_node *nodes[ROPE_MAX_HEIGHT];
 
   for (int i = 0; i < other->head.height; i++) {
@@ -65,24 +66,24 @@ rope *rope_copy(const rope *other) {
     // non-NULL next pointers will be rewritten below.
     r->head.nexts[i] = other->head.nexts[i];
   }
-  
+
   for (rope_node *n = other->head.nexts[0].node; n != NULL; n = n->nexts[0].node) {
     // I wonder if it would be faster if we took this opportunity to rebalance the node list..?
     size_t h = n->height;
     rope_node *n2 = (rope_node *)r->alloc(sizeof(rope_node) + h * sizeof(rope_skip_node));
-    
+
     // Would it be faster to just *n2 = *n; ?
     n2->num_bytes = n->num_bytes;
     n2->height = h;
     memcpy(n2->str, n->str, n->num_bytes);
     memcpy(n2->nexts, n->nexts, h * sizeof(rope_skip_node));
-    
+
     for (int i = 0; i < h; i++) {
       nodes[i]->nexts[i].node = n2;
       nodes[i] = n2;
     }
   }
-  
+
   return r;
 }
 
@@ -90,12 +91,12 @@ rope *rope_copy(const rope *other) {
 void rope_free(rope *r) {
   assert(r);
   rope_node *next;
-  
+
   for (rope_node *n = r->head.nexts[0].node; n != NULL; n = next) {
     next = n->nexts[0].node;
     r->free(n);
   }
-  
+
   r->free(r);
 }
 
@@ -117,14 +118,14 @@ size_t rope_byte_count(const rope *r) {
 size_t rope_write_cstr(rope *r, uint8_t *dest) {
   size_t num_bytes = rope_byte_count(r);
   dest[num_bytes] = '\0';
-  
+
   if (num_bytes) {
     uint8_t *p = dest;
     for (rope_node* restrict n = &r->head; n != NULL; n = n->nexts[0].node) {
       memcpy(p, n->str, n->num_bytes);
       p += n->num_bytes;
     }
-    
+
     assert(p == &dest[num_bytes]);
   }
   return num_bytes + 1;
@@ -162,13 +163,13 @@ static uint8_t random_height() {
   // not worth investing the time to optimise.
 
   uint8_t height = 1;
-  
+
   // The root node's height is the height of the largest node + 1, so the largest
   // node can only have ROPE_MAX_HEIGHT - 1.
   while(height < (ROPE_MAX_HEIGHT - 1) && (random() % 100) < ROPE_BIAS) {
     height++;
   }
-  
+
   return height;
 }
 
@@ -298,7 +299,7 @@ static rope_node *iter_at_char_pos(rope *r, size_t char_pos, rope_iter *iter) {
     if (offset > skip) {
       // Go right.
       assert(e == &r->head || e->num_bytes);
-      
+
       offset -= skip;
 #if ROPE_WCHAR
       wchar_pos += e->nexts[height].wchar_size;
@@ -319,17 +320,17 @@ static rope_node *iter_at_char_pos(rope *r, size_t char_pos, rope_iter *iter) {
       }
     }
   }
-  
+
 #if ROPE_WCHAR
   // For some reason, this is _REALLY SLOW_. Like, 5.5Mops/s -> 4Mops/s from this block of code.
   wchar_pos += count_wchars_in_utf8(e->str, offset);
-  
+
   // The iterator has the wchar pos from the start of the whole string.
   for (int i = 0; i < r->head.height; i++) {
     iter->s[i].wchar_size = wchar_pos - iter->s[i].wchar_size;
   }
 #endif
-  
+
   assert(offset <= ROPE_NODE_STR_SIZE);
   assert(iter->s[0].node == e);
   return e;
@@ -347,7 +348,7 @@ static rope_node *iter_at_wchar_pos(rope *r, size_t wchar_pos, rope_iter *iter) 
   size_t offset = wchar_pos;
   size_t skip;
   size_t char_pos = 0; // Current char pos from the start of the rope.
-  
+
   while (true) {
     skip = e->nexts[height].wchar_size;
     if (offset > skip) {
@@ -360,7 +361,7 @@ static rope_node *iter_at_wchar_pos(rope *r, size_t wchar_pos, rope_iter *iter) 
       iter->s[height].skip_size = char_pos;
       iter->s[height].node = e;
       iter->s[height].wchar_size = offset;
-      
+
       if (height == 0) {
         break;
       } else {
@@ -370,7 +371,7 @@ static rope_node *iter_at_wchar_pos(rope *r, size_t wchar_pos, rope_iter *iter) 
   }
 
   char_pos += count_utf8_in_wchars(e->str, offset);
-  
+
   // The iterator has character positions from the start of the rope to the start of the node.
   for (int i = 0; i < r->head.height; i++) {
     iter->s[i].skip_size = char_pos - iter->s[i].skip_size;
@@ -404,7 +405,7 @@ static void insert_at(rope *r, rope_iter *iter,
 #if ROPE_WCHAR
   size_t num_wchars = count_wchars_in_utf8(str, num_chars);
 #endif
-  
+
   // This describes how many levels of the iter are filled in.
   uint8_t max_height = r->head.height;
   uint8_t new_height = random_height();
@@ -413,12 +414,12 @@ static void insert_at(rope *r, rope_iter *iter,
   memcpy(new_node->str, str, num_bytes);
 
   assert(new_height < ROPE_MAX_HEIGHT);
-  
+
   // Max height (the rope's head's height) must be 1+ the height of the largest node.
   while (max_height <= new_height) {
     r->head.height++;
     r->head.nexts[max_height] = r->head.nexts[max_height - 1];
-    
+
     // This is the position (offset from the start) of the rope.
     iter->s[max_height] = iter->s[max_height - 1];
     max_height++;
@@ -430,11 +431,11 @@ static void insert_at(rope *r, rope_iter *iter,
     rope_skip_node *prev_skip = &iter->s[i].node->nexts[i];
     new_node->nexts[i].node = prev_skip->node;
     new_node->nexts[i].skip_size = num_chars + prev_skip->skip_size - iter->s[i].skip_size;
-    
+
 
     prev_skip->node = new_node;
     prev_skip->skip_size = iter->s[i].skip_size;
-    
+
     // & move the iterator to the end of the newly inserted node.
     iter->s[i].node = new_node;
     iter->s[i].skip_size = num_chars;
@@ -444,7 +445,7 @@ static void insert_at(rope *r, rope_iter *iter,
     iter->s[i].wchar_size = num_wchars;
 #endif
   }
-  
+
   for (; i < max_height; i++) {
     iter->s[i].node->nexts[i].skip_size += num_chars;
     iter->s[i].skip_size += num_chars;
@@ -453,7 +454,7 @@ static void insert_at(rope *r, rope_iter *iter,
     iter->s[i].wchar_size += num_wchars;
 #endif
   }
-  
+
   r->num_chars += num_chars;
   r->num_bytes += num_bytes;
 }
@@ -469,7 +470,7 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
     assert(offset <= e->nexts[0].skip_size);
     offset_bytes = count_bytes_in_utf8(e->str, offset);
   }
-  
+
   // We might be able to insert the new data into the current node, depending on
   // how big it is. We'll count the bytes, and also check that its valid utf8.
   ssize_t num_inserted_bytes = bytelen_and_check_utf8(str);
@@ -477,7 +478,7 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
 
   // Can we insert into the current node?
   bool insert_here = e->num_bytes + num_inserted_bytes <= ROPE_NODE_STR_SIZE;
-  
+
   // Can we insert into the subsequent node?
   rope_node *next = NULL;
   if (!insert_here && offset_bytes == e->num_bytes) {
@@ -498,7 +499,7 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
       insert_here = true;
     }
   }
-  
+
   if (insert_here) {
     // First move the current bytes later on in the string.
     if (offset_bytes < e->num_bytes) {
@@ -506,11 +507,11 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
               &e->str[offset_bytes],
               e->num_bytes - offset_bytes);
     }
-    
+
     // Then copy in the string bytes
     memcpy(&e->str[offset_bytes], str, num_inserted_bytes);
     e->num_bytes += num_inserted_bytes;
-    
+
     r->num_bytes += num_inserted_bytes;
     size_t num_inserted_chars = strlen_utf8(str);
     r->num_chars += num_inserted_chars;
@@ -522,10 +523,10 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
 #else
     update_offset_list(r, iter, num_inserted_chars);
 #endif
-    
+
   } else {
     // There isn't room. We'll need to add at least one new node to the rope.
-    
+
     // If we're not at the end of the current node, we'll need to remove
     // the end of the current node's data and reinsert it later.
     size_t num_end_chars, num_end_bytes = e->num_bytes - offset_bytes;
@@ -540,11 +541,11 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
 #else
       update_offset_list(r, iter, -num_end_chars);
 #endif
-      
+
       r->num_chars -= num_end_chars;
       r->num_bytes -= num_end_bytes;
     }
-    
+
     // Now we insert new nodes containing the new character data. The data must be broken into
     // pieces of with a maximum size of ROPE_NODE_STR_SIZE. Node boundaries must not occur in the
     // middle of a utf8 codepoint.
@@ -552,7 +553,7 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
     while (str_offset < num_inserted_bytes) {
       size_t new_node_bytes = 0;
       size_t new_node_chars = 0;
-      
+
       while (str_offset + new_node_bytes < num_inserted_bytes) {
         size_t cs = codepoint_size(str[str_offset + new_node_bytes]);
         if (cs + new_node_bytes > ROPE_NODE_STR_SIZE) {
@@ -562,16 +563,16 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
           new_node_chars++;
         }
       }
-      
+
       insert_at(r, iter, &str[str_offset], new_node_bytes, new_node_chars);
       str_offset += new_node_bytes;
     }
-    
+
     if (num_end_bytes) {
       insert_at(r, iter, &e->str[offset_bytes], num_end_bytes, num_end_chars);
     }
   }
-  
+
   return ROPE_OK;
 }
 
@@ -582,17 +583,17 @@ ROPE_RESULT rope_insert(rope *r, size_t pos, const uint8_t *str) {
   _rope_check(r);
 #endif
   pos = MIN(pos, r->num_chars);
-  
+
   rope_iter iter;
   // First we need to search for the node where we'll insert the string.
   rope_node *e = iter_at_char_pos(r, pos, &iter);
 
   ROPE_RESULT result = rope_insert_at_iter(r, e, &iter, str);
-  
+
 #ifdef DEBUG
   _rope_check(r);
 #endif
-  
+
   return result;
 }
 
@@ -605,13 +606,13 @@ size_t rope_insert_at_wchar(rope *r, size_t wchar_pos, const uint8_t *str) {
   _rope_check(r);
 #endif
   wchar_pos = MIN(wchar_pos, rope_wchar_count(r));
-  
+
   rope_iter iter;
   // First we need to search for the node where we'll insert the string.
   rope_node *e = iter_at_wchar_pos(r, wchar_pos, &iter);
   size_t pos = iter.s[r->head.height - 1].skip_size;
   rope_insert_at_iter(r, e, &iter, str);
-  
+
 #ifdef DEBUG
   _rope_check(r);
 #endif
@@ -622,7 +623,7 @@ size_t rope_insert_at_wchar(rope *r, size_t wchar_pos, const uint8_t *str) {
 
 // Delete num characters at position pos. Deleting past the end of the string
 // has no effect.
-static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t length) {  
+static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t length) {
   r->num_chars -= length;
   size_t offset = iter->s[0].skip_size;
   while (length) {
@@ -631,13 +632,13 @@ static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t leng
       e = iter->s[0].node->nexts[0].node;
       offset = 0;
     }
-    
+
     size_t num_chars = e->nexts[0].skip_size;
     size_t removed = MIN(length, num_chars - offset);
 #if ROPE_WCHAR
     size_t removed_wchars;
 #endif
-    
+
     int i;
     if (removed < num_chars || e == &r->head) {
       // Just trim this node down to size.
@@ -652,7 +653,7 @@ static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t leng
       }
       e->num_bytes -= removed_bytes;
       r->num_bytes -= removed_bytes;
-      
+
       for (i = 0; i < e->height; i++) {
         e->nexts[i].skip_size -= removed;
 #if ROPE_WCHAR
@@ -671,21 +672,21 @@ static void rope_del_at_iter(rope *r, rope_node *e, rope_iter *iter, size_t leng
         iter->s[i].node->nexts[i].wchar_size += e->nexts[i].wchar_size - removed_wchars;
 #endif
       }
-      
+
       r->num_bytes -= e->num_bytes;
       // TODO: Recycle e.
       rope_node *next = e->nexts[0].node;
       r->free(e);
       e = next;
     }
-    
+
     for (; i < r->head.height; i++) {
       iter->s[i].node->nexts[i].skip_size -= removed;
 #if ROPE_WCHAR
       iter->s[i].node->nexts[i].wchar_size -= removed_wchars;
 #endif
     }
-    
+
     length -= removed;
   }
 }
@@ -694,18 +695,18 @@ void rope_del(rope *r, size_t pos, size_t length) {
 #ifdef DEBUG
   _rope_check(r);
 #endif
-  
+
   assert(r);
   pos = MIN(pos, r->num_chars);
   length = MIN(length, r->num_chars - pos);
-  
+
   rope_iter iter;
-  
+
   // Search for the node where we'll insert the string.
   rope_node *e = iter_at_char_pos(r, pos, &iter);
-  
+
   rope_del_at_iter(r, e, &iter, length);
-  
+
 #ifdef DEBUG
   _rope_check(r);
 #endif
@@ -716,14 +717,14 @@ size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *ch
 #ifdef DEBUG
   _rope_check(r);
 #endif
-  
+
   assert(r);
   size_t wchar_total = rope_wchar_count(r);
   wchar_pos = MIN(wchar_pos, wchar_total);
   wchar_num = MIN(wchar_num, wchar_total - wchar_pos);
-  
+
   rope_iter iter;
-  
+
   // Search for the node where we'll insert the string.
   rope_node *start = iter_at_wchar_pos(r, wchar_pos, &iter);
   size_t char_pos = iter.s[r->head.height - 1].skip_size;
@@ -731,10 +732,10 @@ size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *ch
   rope_iter end_iter;
   int h = r->head.height - 1;
   iter_at_wchar_pos(r, iter.s[h].wchar_size + wchar_num, &end_iter);
-  
+
   size_t char_length = end_iter.s[h].skip_size - iter.s[h].skip_size;
   rope_del_at_iter(r, start, &iter, char_length);
-  
+
 #ifdef DEBUG
   _rope_check(r);
 #endif
@@ -748,11 +749,11 @@ size_t rope_del_at_wchar(rope *r, size_t wchar_pos, size_t wchar_num, size_t *ch
 void _rope_check(rope *r) {
   assert(r->head.height); // Even empty ropes have a height of 1.
   assert(r->num_bytes >= r->num_chars);
-  
+
   rope_skip_node skip_over = r->head.nexts[r->head.height - 1];
   assert(skip_over.skip_size == r->num_chars);
   assert(skip_over.node == NULL);
-  
+
   size_t num_bytes = 0;
   size_t num_chars = 0;
 #if ROPE_WCHAR
@@ -765,7 +766,7 @@ void _rope_check(rope *r) {
   for (int i = 0; i < r->head.height; i++) {
     iter.s[i].node = &r->head;
   }
-  
+
   for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     assert(n == &r->head || n->num_bytes);
     assert(n->height <= ROPE_MAX_HEIGHT);
@@ -783,14 +784,14 @@ void _rope_check(rope *r) {
       iter.s[i].wchar_size += n->nexts[i].wchar_size;
 #endif
     }
-    
+
     num_bytes += n->num_bytes;
     num_chars += n->nexts[0].skip_size;
 #if ROPE_WCHAR
     num_wchar += n->nexts[0].wchar_size;
 #endif
   }
-  
+
   for (int i = 0; i < r->head.height; i++) {
     assert(iter.s[i].node == NULL);
     assert(iter.s[i].skip_size == num_chars);
@@ -798,7 +799,7 @@ void _rope_check(rope *r) {
     assert(iter.s[i].wchar_size == num_wchar);
 #endif
   }
-  
+
   assert(r->num_bytes == num_bytes);
   assert(r->num_chars == num_chars);
 #if ROPE_WCHAR
@@ -816,7 +817,7 @@ void _rope_print(rope *r) {
     printf(" |%3zd ", r->head.nexts[i].skip_size);
   }
   printf("\n");
-  
+
   int num = 0;
   for (rope_node *n = &r->head; n != NULL; n = n->nexts[0].node) {
     printf("%3d:", num++);
@@ -828,4 +829,3 @@ void _rope_print(rope *r) {
     printf("\"\n");
   }
 }
-

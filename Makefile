@@ -21,6 +21,6 @@ librope.a: rope.o
 	ar rcs $@ $+
 
 # Only need corefoundation to run the tests on mac
-tests: librope.a test/tests.c test/benchmark.c test/slowstring.c
+tests: test/tests.c test/benchmark.c test/slowstring.c librope.a
 	$(CC) $(CFLAGS) $+ -o $@
 

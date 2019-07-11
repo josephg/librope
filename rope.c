@@ -131,6 +131,85 @@ size_t rope_write_cstr(rope *r, uint8_t *dest) {
   return num_bytes + 1;
 }
 
+static inline uint8_t *skip_utf8(uint8_t *str, size_t chars, size_t bytelen);
+
+static inline size_t copy_utf8(uint8_t *dst, const uint8_t *src, size_t *chars,
+                               size_t max_size);
+
+size_t rope_write_substr(rope *rope, uint8_t *buf, size_t *bufsize,
+                         size_t from, size_t to) {
+  size_t len = rope_char_count(rope);
+  if (to > len) {
+    to = len;
+  }
+
+  rope_node *node = &rope->head;
+  size_t skipped = 0;
+
+  // Find the starting node.
+  while (skipped + node->nexts[0].skip_size < from) {
+    // Use the skip list.
+    uint8_t height = node->height;
+    uint8_t i;
+    for (i = 1; i < height; ++i) {
+      if (skipped + node->nexts[i].skip_size >= from) {
+        // Too far. Look at the next node's skip list.
+        break;
+      }
+    }
+
+    // Record how many chars we skipped.
+    skipped += node->nexts[i - 1].skip_size;
+    node = node->nexts[i - 1].node;
+
+    if (!node) {
+      // Went too far, can't read anything.
+      return 0;
+    }
+  }
+
+  size_t total_bytes;
+  size_t total_chars;
+  uint8_t *str;
+  size_t bytes;
+  size_t chars;
+
+  // Copy from the first node. At this point, we're copying to the beginning
+  // of the buffer from some offset within this node.
+  str = node->str;
+  uint8_t *start = skip_utf8(str, from - skipped, node->num_bytes);
+  chars = to - from;
+  bytes = node->num_bytes - (start - str);
+  if (*bufsize < bytes) {
+    bytes = *bufsize;
+  }
+  bytes = copy_utf8(buf, start, &chars, bytes);
+  from += chars;
+  total_bytes = bytes;
+  total_chars = chars;
+  node = node->nexts[0].node;
+
+  // Now copy from the rest of the nodes. Here we always start at the
+  // beginning of the node and copy into the buffer at an offset.
+  while (node && from < to && total_bytes < *bufsize) {
+    str = node->str;
+    chars = to - from;
+    bytes = *bufsize - total_bytes;
+    if (node->num_bytes < bytes) {
+      bytes = node->num_bytes;
+    }
+    bytes = copy_utf8(buf + total_bytes, str, &chars, bytes);
+    from += chars;
+    total_bytes += bytes;
+    total_chars += chars;
+    node = node->nexts[0].node;
+  }
+
+  *bufsize = total_bytes;
+  return total_chars;
+}
+
+
 // Create a new C string which contains the rope. The string will contain
 // the rope encoded as utf8.
 uint8_t *rope_create_cstr(rope *r) {
@@ -209,6 +288,72 @@ static size_t count_bytes_in_utf8(const uint8_t *str, size_t num_chars) {
     p += codepoint_size(*p);
   }
   return p - str;
+}
+
+/// Skip to the given UTF-8 offset in the string.
+/// \param str The string to search.
+/// \param chars The number of characters to skip.
+/// \param bytelen The length of the string in bytes.
+/// \return A pointer to the new offset in the string.
+static inline uint8_t *skip_utf8(uint8_t *str, size_t chars, size_t bytelen) {
+  size_t chars_seen = 0;
+  const uint8_t *const end = str + bytelen;
+  while (chars_seen < chars) {
+    size_t cp_size = codepoint_size(*str);
+    if (str + cp_size > end) {
+      break;
+    }
+    str += cp_size;
+    ++chars_seen;
+  }
+  return str;
+}
+
+/// Copy a number of UTF-8 characters into a new buffer. Does not write a null.
+/// \param dst The buffer to copy to.
+/// \param src The buffer to copy from.
+/// \param chars In: the number of characters to copy.
+///              Out: the number of characters written.
+/// \param max_size The maximum number of bytes to copy.
+/// \return The number of bytes written.
+static inline size_t copy_utf8(uint8_t *dst, const uint8_t *src, size_t *chars,
+                               size_t max_size) {
+  size_t chars_seen = 0;
+  const uint8_t *const start = src;
+  const uint8_t *const end = src + max_size;
+  const uint8_t *const safe_end = end - 6;
+
+  while (src < safe_end) {
+    switch (codepoint_size(*src)) {
+      case 6: *dst++ = *src++;
+      case 5: *dst++ = *src++;
+      case 4: *dst++ = *src++;
+      case 3: *dst++ = *src++;
+      case 2: *dst++ = *src++;
+      default: *dst++ = *src++;
+    }
+    ++chars_seen;
+  }
+
+  while (src < end) {
+    size_t cp_size = codepoint_size(*src);
+    if (src + cp_size > end) {
+      // Not enough room to write this character.
+      break;
+    }
+    switch (cp_size) {
+      case 6: *dst++ = *src++;
+      case 5: *dst++ = *src++;
+      case 4: *dst++ = *src++;
+      case 3: *dst++ = *src++;
+      case 2: *dst++ = *src++;
+      default: *dst++ = *src++;
+    }
+    ++chars_seen;
+  }
+
+  *chars = chars_seen;
+  return src - start;
 }
 
 #if ROPE_WCHAR

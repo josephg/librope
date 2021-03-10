@@ -33,7 +33,8 @@ rope_del(r, 2, 6);
 /* Get the whole string back out of the rope */
 uint8_t *str = rope_create_cstr(r);
 
-/* str now contains "Hi!"! */
+/* str now contains "Hi!"! Test it out!: */
+_rope_print(r);
 
 /* Done with the rope? */
 rope_free(r);

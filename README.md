@@ -11,8 +11,12 @@ Usage
 -----
 
 Just add `rope.c` and `rope.h` to your project.
+Be sure to add `rope.c` to your compile line as well.
 
 ```c
+// Import rope library into project
+#include "rope.h"
+
 // Make a new empty rope
 rope *r = rope_new();
 
@@ -20,14 +24,15 @@ rope *r = rope_new();
 rope_insert(r, 0, "Hi there!");
 
 // Delete 6 characters at position 2
-rope_delete(r, 2, 6);
+rope_del(r, 2, 6);
 
 // Get the whole string back out of the rope
-uint8_t *str = rope_createcstr(r, NULL);
+uint8_t *str = rope_create_cstr(r);
 
-// str now contains "Hi!"!
+// str now contains "Hi!"! Test it out!:
+_rope_print(r);
 
-// Done with the rope
+// Done with the rope?
 rope_free(r);
 ```
 

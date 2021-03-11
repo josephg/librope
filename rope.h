@@ -134,6 +134,13 @@ size_t rope_write_cstr(rope *r, uint8_t *dest);
 // Use rope_byte_count(r) to get the length of the returned string.
 uint8_t *rope_create_cstr(rope *r);
 
+// Copies a range of text from the rope into a buffer. Indexes in characters.
+// Does _not_ append a null to the buffer. On input, bufsize is the maximum
+// number of bytes to write to the buffer. On output, it contains the actual
+// number of bytes written. Returns the number of characters written.
+size_t rope_write_substr(rope *rope, uint8_t *buf, size_t *bufsize,
+                         size_t from, size_t to);
+
 // If you try to insert data into the rope with an invalid UTF8 encoding,
 // nothing will happen and we'll return ROPE_INVALID_UTF8.
 typedef enum { ROPE_OK, ROPE_INVALID_UTF8 } ROPE_RESULT;

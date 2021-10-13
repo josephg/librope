@@ -5,7 +5,11 @@ This is a little C library for heavyweight utf-8 strings (rope). Unlike regular 
 
 librope is implemented using skip lists, which have the same big-O time complexity as trees but don't require rebalancing.
 
-librope is _fast_. It will happily perform ~1-5 million edit operations per second, depending on the size of your strings. Inserts and deletes in librope outperform straight C strings for any document longer than a few hundred bytes.
+librope is _fast_. It will happily perform [~15 million edit operations per second](https://home.seph.codes/public/rope_bench/realworld/C-JumpRope/automerge-paper/report/index.html) on a modern CPU. Inserts and deletes in librope outperform straight C strings for any document longer than a few hundred bytes.
+
+## Support
+
+This library works (C code never dies). But I'm moving to rust for my newer projects. This library has been rewritten in rust as [Jumprope](https://crates.io/crates/jumprope). Jumprope is another 2-3x faster than this library on real world editing traces. Its obnoxiously fast.
 
 Usage
 -----
